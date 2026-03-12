@@ -1,0 +1,3 @@
+display_name: Depo Stok Domain
+short_description: Domain rules, schema and API contract guardrails for Depo/Stok.
+default_prompt: Implement Depo/Stok changes while preserving RBAC, barcode format, schema, and API contracts.

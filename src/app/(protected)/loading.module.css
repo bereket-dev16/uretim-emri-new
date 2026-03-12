@@ -1,0 +1,39 @@
+.main {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 1.25rem 1.1rem 2rem;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, #ffffff 0%, var(--panel-soft) 100%);
+  box-shadow: var(--shadow-soft);
+  padding: 1rem 1.2rem;
+}
+
+.card p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.shimmer {
+  height: 8px;
+  width: 180px;
+  margin-bottom: 0.8rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #dce6f4 10%, #f2f7ff 50%, #dce6f4 90%);
+  background-size: 220px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 220px 0;
+  }
+
+  100% {
+    background-position: -220px 0;
+  }
+}

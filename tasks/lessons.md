@@ -1,0 +1,83 @@
+# Lessons
+
+- Her değişiklikte önce `tasks/todo.md` içindeki checklist güncellensin, sonra uygulama koduna geçilsin.
+- API tarafında her hata kullanıcıya güvenli mesaj + `requestId` formatında döndürülmeli.
+- Yetki kontrolleri sadece UI seviyesinde bırakılmamalı; route handler seviyesinde de zorunlu olmalı.
+- Büyük listelerde yalnız server-side pagination kullanılmalı, client-side tüm veri çekimi yapılmamalı.
+- Next.js 15 App Router sayfalarında `searchParams` Promise olarak ele alınmalı ve doğrudan sync erişim yapılmamalı.
+- Stok ekleme SQL'inde karışık veri tipleri kullanılırken placeholder cast'leri açık yazılmalı (`::numeric`, `::uuid`, vb.) aksi halde parametre tip çakışması oluşabiliyor.
+- Supabase Cloud IPv4/LAN senaryosunda Direct URL yerine Session Pooler URL ve `postgres.<project_ref>` kullanıcı formatı kullanılmalı.
+- Şema değişikliği migration'ı uygulama çalışırken yapıldıysa kolon/cache tutarsızlığı görülebilir; migration sonrası uygulama yeniden başlatılarak doğrulanmalı.
+- Veri dönüşümü (`UPDATE`) yeni değeri eski check constraint'e takılıyorsa önce ilgili constraint düşürülmeli, sonra veri dönüştürülüp yeni constraint tekrar eklenmeli.
+- Postgres `date/timestamp` alanları UI’a giderken her zaman servis katmanında string (ISO) normalize edilmeli; client component’e `Date` objesi taşınmamalı.
+- Filtre formlarında "Tüm..." seçenekleri boş string (`""`) gönderir; query validation katmanı bunları `undefined`'a normalize etmezse parse fallback olur ve filtreler etkisiz görünür.
+- CodeHealth `multiple-usestate` ve `large-component` uyarılarında ilk tercih: state'i `useReducer` hook'una taşıyıp satır/form bloklarını ayrı bileşenlere ayırmak.
+- Tablolu ekranlarda performans için state'i tek reducer altında topla; `useEffect` içinde art arda çoklu `setState` yerine tek `sync` action kullan.
+- Büyük tablo componentlerinde satır renderını ayrı dosyaya çıkar ve `React.memo` ile sarmala; parent renderlarında her satırın gereksiz yeniden çizilmesini azaltır.
+- Async aksiyonlarda (`save/delete/reset`) "busy + mesaj + seçim" durumlarını ortak state modelinde yönetmek hem render churn'ünü hem de edge-case bug riskini düşürür.
+- CodeHealth profilleri (`--next`, `--react`) proje içindeki JS/TS dosyalarını tarasa da kurallar framework odaklıdır; backend için ayrı quality gate (API guard + SQL/migration kontrolü) gerekir.
+- Ağ kısıtlı ortamlarda MCP/CLI kurulumları (`npx ... install`) sessizce takılabilir; önce kısa `npm view` testi ile registry erişimini doğrulayıp fallback planını erkenden belirt.
+- Büyük UI modernizasyonlarında önce global token/surface sistemi güncellenmeli, sonra sayfa bileşenlerine inilmelidir; bu yaklaşım tutarlılığı ve bakım hızını artırır.
+- Navigasyon active state'i `startsWith` ile ayrı ayrı hesaplanırsa parent ve child linkler aynı anda aktif görünebilir; çözüm aktif linki "en uzun eşleşen href" olarak tekil belirlemektir.
+- Dashboard gibi ana yüzeylerde dekoratif ama teknik metinler (`Ağ Tipi`, `Erişim`, vb.) hızla gürültüye dönüşür; minimal kullanım için başlık, kısa açıklama, KPI ve aksiyon kartları dışına çıkmamak gerekir.
+- Giriş ve tanıtım yüzeylerinde teknik veya ürün-içi jargon (`SaaS`, `LAN`, `session` gibi) kullanıcıya değer katmıyorsa çıkarılmalı; bu alanlarda daha sıcak ve şirket diliyle yazılmış kısa metinler tercih edilmelidir.
+- Çok sayfalı yönetim panellerinde ortak `PageIntro` ve `SectionPanel` gibi iskeletler kullanılmalı; bu yaklaşım başlık, aksiyon ve içerik düzenini tutarlı kılar ve her ekranda yeniden tasarım ihtiyacını azaltır.
+- Bir sayfada hem dış shell hem iç component kendi `Card` kabuğunu çiziyorsa ekran hızlıca ağır görünür; ana yüzey dışarıda çözülmüşse iç bileşende fazladan kart kabuğu kaldırılmalıdır.
+- Aynı domain bilgisini birden fazla ekranda tabloyla tekrar göstermek yerine ortak detay blokları (`DetailFieldGrid`, `MaterialsList`, `DispatchStatusGrid`) oluşturulmalı; bu hem bakım maliyetini düşürür hem de kullanıcıya daha tutarlı bir görünüm verir.
+- Ham rol kodları (`warehouse_manager`, `production_manager`) kullanıcıya doğrudan gösterilmemeli; liste ve detay yüzeylerinde her zaman insan okuyabilir etiket katmanı kullanılmalıdır.
+- Geniş tablolarda mobil optimizasyon için yatay scroll tek başına yeterli değildir; kritik CRUD ekranlarında `lg` altı kart fallback sunmak kullanılabilirliği belirgin artırır.
+- Mobil fallback eklenirken masaüstü tabloyla aynı aksiyonlar korunmalı; ayrı davranış üretmek yerine aynı state ve handler'lar kart bileşenlerine geçirilmelidir.
+- Mobilde tek kart içinde üç-dört büyük detay bölümü üst üste geliyorsa ikinci adım kart fallback değil, bölüm bazlı özet/detay ayrımı olmalıdır; `ResponsiveDetailSection` gibi yapı küçük ekranda yoğunluğu belirgin düşürür.
+- Responsive detay bileşenlerinde masaüstü ile mobil davranış ayrımı açık olmalı: masaüstünde içerik sürekli açık, mobilde ise başlık + kısa özet + toggle deseni kullanılmalıdır.
+- Aynı kart başlığı üç ayrı panelde tekrar ediyorsa ortak header bileşeni çıkarılmalı; böylece mobilde chip düzeni, buton akışı ve boşluklar tek yerden yönetilir.
+- Mobil aksiyon alanlarında yatay düğme sırası yerine `w-full sm:w-auto` yaklaşımıyla küçük ekranda dikey, büyük ekranda yatay akış daha okunaklı sonuç verir.
+- Büyük dosya ekle/sil ve module graph değişikliklerinden sonra Next.js dev ortamında `__webpack_modules__[moduleId] is not a function` görülürse önce `.next` temizleyip dev sunucuyu yeniden başlatmak gerekir; çoğunlukla HMR cache bozulmasıdır.
+- Radix tabanlı dropdownlar bazı ekranlarda body scroll lock davranışı gösterebilir; kritik uzun formlarda bu UX problemine karşı ilgili alanı native `select` ile çözmek daha stabil olabilir.
+- Popup print akışında `window.open('', '_blank', 'noopener,noreferrer') + document.write` kombinasyonu bazı tarayıcılarda boş `about:blank` bırakabilir; Blob URL ile HTML üretip yeni sekmede açmak daha güvenilir çalışır.
+- API benchmarklarında yüksek concurrency (örn. 8) ile aralıklı 500 oluşabiliyorsa eşik karşılaştırması için düşük concurrency (örn. 4) ile ikinci koşu mutlaka alınmalı; böylece kapasite sınırı mı uygulama bugı mı ayrıştırılır.
+- Stok gibi akış testlerinde büyük dataset (örn. 1000 kayıt) mümkünse uygulamanın gerçek yazma kurallarını (barcode sequence, audit log, soft-delete politikası) koruyan seed scripti ile üretilmeli; doğrudan elle/tekil UI girişi hem yavaş hem tutarsızdır.
+- Performans kıyasını yalnız `next dev` üzerinde yorumlamak yanıltıcı olabilir; güvenilir sonuç için aynı senaryolar `next build && next start` modunda da tekrar edilmelidir.
+- Yük altında görülen 500 yanıtlarında body içindeki `requestId` mutlaka toplanmalı ve sunucu logunda aynı `requestId` ile kök hata eşlenmeden kalıcı optimizasyon kararı verilmemelidir.
+- Yük arttığında aralıklı 500 için pratik kök neden hipotez listesi: (1) `next dev` overhead, (2) Supabase pooler/bağlantı limiti, (3) DB pool boyutu ile ortam limiti uyumsuzluğu, (4) ağ dalgalanması/timeout.
+- Yük kaynaklı hata çözüm sırası standartlaştırılmalı: önce prod mod benchmark, sonra `requestId` ile log korelasyonu, sonra DB pool tuning (`DB_POOL_MAX` gibi env ile), ardından concurrency step test (`4 -> 6 -> 8 -> 10`) ve eşik tespiti.
+- React re-render yalnız mevcut tarayıcı sekmesindeki state/props değişimini yansıtır; farklı cihazdan gelen DB değişikliği için ayrıca polling, websocket veya realtime subscription gerekir.
+- Mevcut mimaride (`Next route handlers + direct pg + custom session`) en düşük riskli cross-client canlılık çözümü periyodik API polling'dir; mimariyi Supabase client realtime'a taşımadan uygulanabilir.
+- Polling akışında edit/silme/busy sırasında senkronizasyon durdurulmalı; aksi halde kullanıcı draft state'i server verisiyle ezilebilir.
+- Polling akışında `document.visibilityState` kontrolü eklenmeli; sekme gizliyken istek atmamak hem gereksiz DB yükünü hem ağ trafiğini azaltır.
+- Polling ile gelen veride snapshot karşılaştırması yapılmalı; veri değişmediyse `setState` çağrısı atlanarak gereksiz render ve jitter önlenir.
+- SSR ile açılan özet tablolar (örn. Son Eklenen 5) cross-client güncellenmez; bu tip kartlar için ayrı bir read endpoint + client polling eklenmesi gerekir (`/api/stocks/recent` gibi).
+- Test veri temizliği taleplerinde soft-delete ile hard-delete beklentisi netleştirilmeli; kullanıcı DB'den tamamen kaldırmak istiyorsa `stocks` yanında ilgili `audit_logs` seed kayıtları da fiziksel olarak silinmeli.
+- Silme davranışı değiştiğinde yalnız API değil; dashboard metrik sorguları, list endpointleri, auth/user filtreleri, seed/cleanup scriptleri ve kalite kontrolleri birlikte güncellenmeli.
+- Hard-delete'e geçişte geçmiş soft-delete kayıtları migration ile fiziksel temizlenmezse dashboard/DB sayıları tutarsız görünür; geçiş migration'ında bu kayıtları purge etmek gerekir.
+- Kullanıcı hard-delete akışında FK kısıtları (`stocks.created_by` gibi) 23503 ile patlayabilir; bu durum kullanıcıya anlaşılır 409 mesajı olarak dönülmeli.
+- Canlı bilgi panellerinde tek satırda çok metrik vermek anlaşılabilirliği düşürür; "günün temposu" gibi alanlarda kısa etiket + ayrı küçük metrik blokları tercih edilmelidir.
+- KPI kutularında sadece sayı göstermek belirsizlik yaratır; etiketler "neyin sayısı"nı açıkça söylemeli ve değerde birim (`islem`, `kez`) mutlaka yazmalıdır.
+- Kompakt canlı panel/KPI kartlarında Türkçe başlıklar (`En Sık İşlem` gibi) için `white-space: nowrap + text-overflow: ellipsis + min-width: 0` birlikte kullanılmalı; aksi halde başlık alt satıra düşer veya kutudan taşar.
+- Portal/animasyon içeren canlı widget'larda dev ortamda aralıklı `removeChild` runtime'ı görülürse bileşeni mount-gate (`isMounted`) ile yalnız client mount sonrası render etmek hydration/HMR kaynaklı DOM tutarsızlıklarını azaltır.
+- Canlı audit bildirimlerinde “kendi işlemini görmeme” beklentisi için session username bileşene prop olarak geçirilmeli ve `actorUsername` eşleşen event’ler client filtrede elenmelidir; aynı akışta toast alanı panel üstünde ve `max-height + MAX_TOASTS` sınırıyla tutulmalıdır.
+- `tailwind.config.ts` ESM bağlamında çalışırken `require(...)` kullanımı `ReferenceError: require is not defined` üretir; pluginler daima üstte `import ... from ...` ile alınmalı ve `plugins` dizisine import edilen değişken verilmelidir.
+- Canlı bildirim tasarımında yalnız etiket (`.toastMeta`) değil balonun kendisi (`.toast`) arka planı da kontrol edilmelidir; gerçekten transparan görünüm için `.toast` ve gerekiyorsa `.toast::before` birlikte güncellenmelidir.
+- Kullanıcı “balonların olduğu kutu” dediğinde hedef sınıf çoğunlukla konteyner (`.feed`) olur; bu durumda `.toast` düzeltmesi tek başına yeterli değildir, konteyner seviyesinde de arka plan/filtre/gölge sıfırlanmalıdır.
+- Web Audio bildirimlerinde Chrome autoplay politikası nedeniyle sesi polling callback içinde doğrudan başlatmaya çalışmak warning üretir; doğru desen kullanıcı gesture (`pointerdown/keydown/touchstart`) ile `AudioContext` unlock etmek ve unlock öncesi olayları pending olarak işaretlemektir.
+- Ses özelliği ürün kararıyla kaldırıldığında unlock/pending gibi ses karmaşıklığı koddan tamamen çıkarılmalı; feature flag bırakmadan sade sessiz akış korunması bakım maliyetini düşürür.
+- `transparent` arka plan gri görünüyorsa sorun çoğunlukla arka katman rengi değil gölge/blur ve stacking etkileridir; önce ilgili container/child katmanlarında `box-shadow`, `backdrop-filter`, `z-index` ve `isolation` kombinasyonu kontrol edilmelidir.
+- Client bileşenlerinde `if (!isMounted) return null` kullanılıyorsa canlı widget ilk SSR HTML’de görünmez; DOM denetimi için “View Source” yerine hydration sonrası DevTools Elements ağacına bakılmalıdır.
+- Çok kullanıcılı polling senaryosunda sabit kısa aralık (örn. 5 sn) her sekmede aynı anda istek patlaması yaratır; default aralık yükseltilmeli ve her client instance’a jitter uygulanmalıdır.
+- Sık okunan endpointlerde (audit stream/recent lists) kısa TTL server memory cache + in-flight dedup, DB sorgu tekrarını düşük riskle ciddi azaltır; log gürültüsü de path bazlı filtre ile düşürülmelidir.
+- Üretim emri gibi çok adımlı akışlarda tek ekran yerine rol bazlı ayrı paneller (`create`, `warehouse`, `monitor`, `tasks`) kurmak hem yetki karmaşasını azaltır hem de iş adımlarını netleştirir.
+- “Önizleme modalı var” demek persistence var demek değildir; kullanıcı beklentisi çoğu zaman `önizle + yazdır + kaydet` üçlüsüdür, create akışında API persist butonu ayrıca bağlanmalıdır.
+- Birim görev akışında durum modeli açık tanımlanmalı: `pending` (kabul bekliyor) -> `in_progress` (çalışıyor) -> `completed` (bitti); depo/monitor ekranları bu statüleri salt okunur izlemelidir.
+- Yeni rol eklendiğinde (`tablet1`) sadece enum güncellemek yetmez; login yönlendirmesi, header menüsü, page guard fallback’i ve admin role select seçenekleri birlikte güncellenmelidir.
+- Üretim emri sevk akışında `DEPO` birimi iş kuralı açık tanımlanmalı; create formunda seçenekten kaldırmak yeterli değildir, depo panelinin listeleme koşulu da `DEPO` dispatch kaydına göre hizalanmalıdır.
+- Minimal tasarım turunun sonlarında ilk bakılması gereken yer yardımcı kutular ve tekrarlayan açıklamalardır; kullanıcıya yeni bilgi vermeyen üst bilgi blokları kaldırılmalıdır.
+- Çoklu seçim dropdown’larında seçilen değerler alan kapandıktan sonra chip özet olarak yüzeyde kalmalıdır; aksi halde kullanıcı form durumunu tekrar açmadan anlayamaz.
+- Direct DB seed scriptlerinde önce güncel şema teyit edilmelidir; uygulama servisinde var sanılan alanlar (`stocks.updated_at` gibi) migration sonrası tabloda olmayabilir.
+- Büyük seed scriptleri doğrudan 2000+ kayıtla denenmemeli; önce küçük prefix’li smoke run alınmalı ve yanında cleanup scripti bulunmalıdır.
+- Test verisi temizlenecekse tüm audit payload’larına ortak `seedPrefix` işareti yazılmalıdır; aksi halde ilişkili audit kayıtlarını güvenli silmek zorlaşır.
+- Dış tasarım skill/repo'ları doğrudan uygulanmamalı; önce proje bağlamına göre "alınacak" ve "alınmayacak" kurallar filtrelenip ayrı bir referans dosyasında netleştirilmelidir.
+- Operasyon panellerinde görsel kaliteyi artırmanın en düşük riskli yolu yeni efekt eklemek değil; arka plan katmanlarını, büyük radius'ları, yoğun blur/gölge kullanımını azaltıp aksiyon hiyerarşisini sadeleştirmektir.
+- İç uygulamalarda serif/display ağırlıklı tasarım dili hızla gürültüye dönüşebilir; sans ağırlıklı tipografi ve kısa yardımcı metinler daha yüksek kullanım hızı sağlar.
+- Tasarım sadeleştirme yalnız header veya dashboard ile bitmez; asıl farkı kullanıcı her gün gördüğü iç form, tablo, modal ve pagination yüzeyleri belirler.
+- Operasyon panellerinde en sık görülen gürültü kaynakları: yarı saydam beyaz kartlar, büyük radius'lar, arka plan blur katmanları ve gereksiz pill/chip tekrarlarıdır; ikinci tur temizlikte önce bunlar azaltılmalıdır.
+- Form ve tablo yoğunluğu farklı ekranlarda ayrı ayrı düzeltilmemeli; ortak `Button`, `Input`, `Select`, `Table`, `Dialog` katmanında ölçü sistemi normalize edilirse tüm uygulamada daha temiz ve daha düşük bakım maliyetli sonuç alınır.
+- Tasarım kapanış turunda mobil kartlar ve preview modalları mutlaka ana masaüstü sistemle tekrar hizalanmalıdır; aksi halde ana ekran sadeleşse bile kullanıcı deneyimi parça parça görünür.

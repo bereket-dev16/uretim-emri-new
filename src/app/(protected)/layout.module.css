@@ -1,0 +1,29 @@
+.main {
+  position: relative;
+  isolation: isolate;
+  animation: fadeIn 0.26s ease-out;
+}
+
+.main::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 220px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(32, 74, 104, 0.09), transparent 34%),
+    radial-gradient(circle at 92% 0%, rgba(184, 106, 43, 0.08), transparent 30%);
+  z-index: -1;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

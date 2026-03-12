@@ -1,0 +1,3 @@
+display_name: Depo Stok Workflow
+short_description: Plan-first delivery and verification workflow for Depo/Stok.
+default_prompt: Execute Depo/Stok tasks with checklist-driven planning, verification, and lessons tracking.
