@@ -107,7 +107,7 @@ export default async function DashboardPage() {
 
           <div className="space-y-2">
             <h1 className="max-w-4xl text-3xl leading-tight text-foreground sm:text-[2.25rem]">
-              Operasyon genel gorunumu
+              TEST DEĞİŞECEK
             </h1>
             <p className="max-w-3xl text-base leading-8 text-muted-foreground">
               Hos geldiniz, <span className="font-semibold text-foreground">{session.username}</span>. Bugun yapilacak ana islemler ve ozetler burada.
