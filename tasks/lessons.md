@@ -81,3 +81,6 @@
 - Operasyon panellerinde en sık görülen gürültü kaynakları: yarı saydam beyaz kartlar, büyük radius'lar, arka plan blur katmanları ve gereksiz pill/chip tekrarlarıdır; ikinci tur temizlikte önce bunlar azaltılmalıdır.
 - Form ve tablo yoğunluğu farklı ekranlarda ayrı ayrı düzeltilmemeli; ortak `Button`, `Input`, `Select`, `Table`, `Dialog` katmanında ölçü sistemi normalize edilirse tüm uygulamada daha temiz ve daha düşük bakım maliyetli sonuç alınır.
 - Tasarım kapanış turunda mobil kartlar ve preview modalları mutlaka ana masaüstü sistemle tekrar hizalanmalıdır; aksi halde ana ekran sadeleşse bile kullanıcı deneyimi parça parça görünür.
+- Windows self-hosted runner ile deploy yapılırken workflow workspace, geliştiricinin manuel clone ettiği klasörden ayrıdır; deploy `.env` dosyası runner workspace repo kökünde tutulmalı ve `actions/checkout` için `clean: false` ayarıyla korunmalıdır.
+- Windows ağ testlerinde `vEthernet`, `WSL`, `DockerNAT` gibi sanal adaptör IP'leri cihazlar arası erişimde kullanılmamalıdır; her zaman fiziksel `Wi-Fi`/`Ethernet` IPv4 adresi seçilmelidir.
+- Docker içinde çalışan uygulamada login sırasında `Invalid URL` görülüyorsa ilk bakılacak yer `.env` içindeki `DATABASE_URL` biçimidir; placeholder (`[YOUR-PASSWORD]`) veya hatalı user/host kombinasyonu bu hatayı doğrudan üretir.

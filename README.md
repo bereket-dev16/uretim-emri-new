@@ -23,6 +23,22 @@ LAN ortamı için tasarlanmış, Next.js fullstack mimaride çalışan depo/stok
 6. Uygulamayı başlat:
    - `pnpm dev`
 
+## Windows Deploy
+- Windows laptop "sahte sunucu" olarak kullanılabilir.
+- Repo private tutulmalı ve GitHub Actions self-hosted runner ile deploy yapılmalıdır.
+- Runner workspace içinde oluşan repo klasöründe `.env` bir kez oluşturulmalı.
+- Workflow `actions/checkout` adımında `clean: false` kullandığı için bu `.env` korunur.
+- Beklenen runner workspace örneği:
+  - `C:\actions-runner\_work\uretim-emri-new\uretim-emri-new`
+- Runner Windows üzerinde online olduktan sonra `main` branch push'ları şu akışı çalıştırır:
+  - `actions/checkout`
+  - `docker compose up -d --build`
+  - kısa log/ps kontrolü
+- Deploy scripti:
+  - `scripts/deploy-windows.ps1`
+- Workflow dosyası:
+  - `.github/workflows/deploy-windows.yml`
+
 ## API uçları
 - `POST /api/auth/login`
 - `POST /api/auth/logout`

@@ -601,3 +601,18 @@
 - Kontrollü smoke run başarıyla çalıştırıldı: `corepack pnpm seed:workload -- --users 6 --records 12 --concurrency 6 --prefix WL-SMOKE-20260309A`
 - Smoke verisi fiziksel olarak temizlendi: `corepack pnpm cleanup:workload -- --prefix WL-SMOKE-20260309A`
 - Ek doğrulama: `node --check scripts/seed-workload.mjs`, `node --check scripts/cleanup-workload.mjs`, `corepack pnpm test` başarılı.
+
+## Iteration: Windows Self-Hosted Deploy Automation
+### Plan
+- [x] Windows self-hosted runner için deploy scriptini ekle
+- [x] `main` branch push ile tetiklenen GitHub Actions workflow'unu ekle
+- [x] Runner workspace içindeki `.env` dosyasının korunacağı güvenli checkout davranışını ekle
+- [x] README ve `ai-context.md` içinde deploy akışını belgeye işle
+- [x] Typecheck + test + build doğrulaması yap
+
+### Review
+- `.github/workflows/deploy-windows.yml` eklendi; `push(main)` ve `workflow_dispatch` ile `windows-deploy-runner` üstünde çalışacak şekilde kuruldu.
+- Workflow `actions/checkout@v4` için `clean: false` kullanıyor; böylece runner workspace içindeki `.env` dosyası her deploy’da silinmiyor.
+- `scripts/deploy-windows.ps1` eklendi; Docker CLI kontrolü, `docker compose up -d --build`, `docker compose ps` ve `docker compose logs web --tail 80` çıktısını tek akışta veriyor.
+- README ve `ai-context.md` dosyaları Windows deploy gerçeğine göre güncellendi; beklenen runner workspace yapısı ve `.env` lokasyonu dokümante edildi.
+- Doğrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` başarılı.

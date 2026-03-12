@@ -13,6 +13,7 @@
 - UI: Tailwind CSS + Radix UI + custom UI components
 - Test: Vitest (unit/integration/concurrency + smoke e2e)
 - Operasyon scriptleri: migration/seed/benchmark/quality scriptleri (`scripts/`)
+- Deploy/CI: GitHub Actions + Windows self-hosted runner + Docker Compose
 
 # Mimari
 - Yaklaşım: modüler katmanlı mimari + service pattern.
@@ -41,6 +42,7 @@
 - `db/bootstrap/`: ilk admin SQL şablonu.
 - `tasks/`: süreç hafızası (`todo.md`, `lessons.md`).
 - `.agents/skills/`: proje workflow/domain skill dosyaları.
+- `.github/workflows/`: CI/CD workflow dosyaları.
 
 # Kodlama Kuralları
 - API tarafında `withApiHandler` kullanılmalı; hata zarfı ve `x-request-id` korunmalı.
@@ -79,6 +81,11 @@
   - `audit_logs` yazımı + `GET /api/audit/stream` canlı akış.
 - Dashboard:
   - özet KPI endpointi ve UI kartları.
+- Deploy:
+  - `scripts/deploy-windows.ps1`
+  - `.github/workflows/deploy-windows.yml`
+  - Self-hosted runner deploy'unda `.env`, runner workspace repo kökünde tutulur; workflow `actions/checkout clean:false` ile bu dosya korunur.
+  - Windows runner üzerinde `docker compose up -d --build` akışı
 
 # Geliştirme Kuralları
 - İşe başlamadan `tasks/todo.md` planı güncellenmeli; bitince Review yazılmalı.
@@ -91,6 +98,7 @@
   - error envelope uyumu
   birlikte ele alınmalı.
 - Büyük değişikliklerde `typecheck` + `test` çalıştırılmalı; mümkünse `build` ile doğrulama yapılmalı.
+- Windows deploy hattında repo private tutulmalı; self-hosted runner public repo ile kullanılmamalıdır.
 
 # AI Çalışma Rehberi
 - Önce görevin etkilediği modülü ve sözleşmeyi belirle (`modules`, `shared/validation`, `api route`).
