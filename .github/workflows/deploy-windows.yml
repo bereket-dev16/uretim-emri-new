@@ -21,9 +21,9 @@ jobs:
           clean: false
 
       - name: Verify Docker CLI
-        shell: powershell
-        run: docker version
+        shell: cmd
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "docker version"
 
       - name: Run deployment script
-        shell: powershell
-        run: ./scripts/deploy-windows.ps1
+        shell: cmd
+        run: powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-windows.ps1

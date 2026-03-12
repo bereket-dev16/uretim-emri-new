@@ -615,4 +615,5 @@
 - Workflow `actions/checkout@v4` için `clean: false` kullanıyor; böylece runner workspace içindeki `.env` dosyası her deploy’da silinmiyor.
 - `scripts/deploy-windows.ps1` eklendi; Docker CLI kontrolü, `docker compose up -d --build`, `docker compose ps` ve `docker compose logs web --tail 80` çıktısını tek akışta veriyor.
 - README ve `ai-context.md` dosyaları Windows deploy gerçeğine göre güncellendi; beklenen runner workspace yapısı ve `.env` lokasyonu dokümante edildi.
+- Windows runner üzerinde PowerShell execution policy engeli görüldüğü için workflow adımları `cmd` shell üzerinden `powershell.exe -ExecutionPolicy Bypass` ile çağrılacak şekilde sertleştirildi.
 - Doğrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` başarılı.

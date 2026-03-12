@@ -84,3 +84,4 @@
 - Windows self-hosted runner ile deploy yapılırken workflow workspace, geliştiricinin manuel clone ettiği klasörden ayrıdır; deploy `.env` dosyası runner workspace repo kökünde tutulmalı ve `actions/checkout` için `clean: false` ayarıyla korunmalıdır.
 - Windows ağ testlerinde `vEthernet`, `WSL`, `DockerNAT` gibi sanal adaptör IP'leri cihazlar arası erişimde kullanılmamalıdır; her zaman fiziksel `Wi-Fi`/`Ethernet` IPv4 adresi seçilmelidir.
 - Docker içinde çalışan uygulamada login sırasında `Invalid URL` görülüyorsa ilk bakılacak yer `.env` içindeki `DATABASE_URL` biçimidir; placeholder (`[YOUR-PASSWORD]`) veya hatalı user/host kombinasyonu bu hatayı doğrudan üretir.
+- Windows self-hosted runner'da GitHub Actions PowerShell step'i `running scripts is disabled on this system` ile düşerse makine genel policy değiştirmek yerine workflow adımı `cmd` shell içinde `powershell.exe -ExecutionPolicy Bypass` çağrısıyla çalıştırılmalıdır.
