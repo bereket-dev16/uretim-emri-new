@@ -13,6 +13,8 @@
 - UI: Tailwind CSS + Radix UI + custom UI components
 - Test: Vitest (unit/integration/concurrency + smoke e2e)
 - Operasyon scriptleri: migration/seed/benchmark/quality scriptleri (`scripts/`)
+  - Gercek kullanima yakin yuk testi: `scripts/benchmark-user-sessions.mjs`
+  - Benchmark kullanici hazirlama: `scripts/prepare-benchmark-users.mjs`
 - Deploy/CI: GitHub Actions + Windows self-hosted runner + Docker Compose
 
 # Mimari

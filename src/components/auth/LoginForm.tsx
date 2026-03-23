@@ -50,12 +50,12 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="ops-panel w-full rounded-[22px] border border-border/70 bg-card shadow-[0_18px_32px_rgba(20,31,43,0.08)]">
+    <Card className="ops-panel w-full rounded-[28px] border-foreground bg-card shadow-[10px_10px_0_#161616]">
       <CardHeader className="space-y-3 px-6 pb-2 sm:px-8 sm:pt-8">
         <div className="ops-kicker w-fit">Giris</div>
         <div className="space-y-2">
-          <CardTitle className="text-3xl font-semibold tracking-tight text-foreground">Panele giris yap</CardTitle>
-          <CardDescription className="max-w-sm text-base leading-7 text-muted-foreground">
+          <CardTitle className="text-[2.2rem] font-black tracking-[-0.06em] text-foreground">Panele giris yap</CardTitle>
+          <CardDescription className="max-w-sm text-base font-medium leading-7 text-muted-foreground">
             Kullanici adi ve sifrenizle devam edin.
           </CardDescription>
         </div>
@@ -74,7 +74,7 @@ export function LoginForm() {
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               required
-              className="h-12 rounded-xl border-border/70 bg-slate-50 px-4"
+              className="min-h-12 rounded-[18px] bg-[#fff7e6] px-4"
             />
           </div>
           <div className="space-y-2">
@@ -90,12 +90,12 @@ export function LoginForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              className="h-12 rounded-xl border-border/70 bg-slate-50 px-4"
+              className="min-h-12 rounded-[18px] bg-[#fff7e6] px-4"
             />
           </div>
 
           {error && (
-            <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm font-medium text-destructive">
+            <div className="rounded-[18px] border-[3px] border-foreground bg-[#ffd7d7] p-3 text-sm font-bold text-destructive shadow-[4px_4px_0_#161616]">
               {error}
             </div>
           )}
@@ -103,7 +103,7 @@ export function LoginForm() {
         <CardFooter className="flex flex-col gap-4 px-6 pb-6 pt-2 sm:px-8 sm:pb-8">
           <Button
             type="submit"
-            className="h-12 w-full rounded-xl text-sm font-semibold"
+            className="min-h-12 w-full rounded-[18px] text-sm font-black"
             disabled={isSubmitting}
           >
             {isSubmitting ? (

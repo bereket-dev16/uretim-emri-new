@@ -59,6 +59,10 @@ LAN ortamı için tasarlanmış, Next.js fullstack mimaride çalışan depo/stok
 
 ## Test
 - `pnpm test`
+- Benchmark kullanicilarini hazirla:
+  - `pnpm prepare:bench-users`
+- Kuyruklu oturum benchmark:
+  - `pnpm bench:sessions -- --usersFile scripts/benchmark-user-sessions.sample.json --dry-run`
 
 ## Quality
 - Frontend/Next odaklı analiz:
@@ -73,3 +77,9 @@ LAN ortamı için tasarlanmış, Next.js fullstack mimaride çalışan depo/stok
 - `NEXT_PUBLIC_CLIENT_POLL_INTERVAL_MS`: client polling temel aralığı (ms). Varsayılan `15000`.
 - `API_READ_CACHE_TTL_MS`: `/api/audit/stream` ve `/api/stocks/recent` için server memory cache TTL (ms). Varsayılan `2000`.
 - `LOG_NOISY_POLLING_ENDPOINTS`: `true` ise yüksek frekanslı polling endpoint info logları tekrar görünür.
+
+## Load Test
+- `scripts/benchmark-user-sessions.mjs` gercek kullanima yakin, kuyruklu oturum benchmark'i icindir.
+- Her sanal kullanici kendi icinde tek seferde bir istek yollar; global yuk staggered/ramp-up ile yayilir.
+- Ornek:
+  - `pnpm bench:sessions -- --usersFile scripts/benchmark-user-sessions.sample.json --sessions 40 --durationSec 300`

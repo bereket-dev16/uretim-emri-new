@@ -617,3 +617,67 @@
 - README ve `ai-context.md` dosyaları Windows deploy gerçeğine göre güncellendi; beklenen runner workspace yapısı ve `.env` lokasyonu dokümante edildi.
 - Windows runner üzerinde PowerShell execution policy engeli görüldüğü için workflow adımları `cmd` shell üzerinden `powershell.exe -ExecutionPolicy Bypass` ile çağrılacak şekilde sertleştirildi.
 - Doğrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` başarılı.
+
+## Iteration: Queued User Session Benchmark
+### Plan
+- [x] Gercek kullanima yakin polling ve aksiyon akisini endpoint/rol bazinda analiz et
+- [x] Paralel patlama yerine kuyruklu/staggered oturum benchmark scriptini ekle
+- [x] Kullanim icin ornek kullanici dosyasi ve package scripti ekle
+- [x] README ve `ai-context.md` icinde benchmark notunu belgeye isle
+- [x] Syntax + dry-run + test dogrulamasi yap
+
+### Review
+- `scripts/benchmark-user-sessions.mjs` eklendi; 30-40 acik ekran senaryosu icin her sanal kullanicinin kendi icinde tek outstanding request ile sirali ilerledigi benchmark akisi kuruldu.
+- Script rol bazli davranis uretir: admin dashboard/audit/users, uretim muduru monitor + nadir emir create, depocu warehouse + malzeme/sevk + nadir stok create, hat kullanicisi accept/complete.
+- Yuk burst yerine ramp-up/stagger ile yayilir; polling araliklari proje env degerleriyle uyumlu okunur (`NEXT_PUBLIC_CLIENT_POLL_INTERVAL_MS`, `NEXT_PUBLIC_PRODUCTION_ORDERS_POLL_INTERVAL_MS`).
+- `scripts/benchmark-user-sessions.sample.json` ve `pnpm bench:sessions` eklendi; `--dry-run` ile plan dogrulamasi yapilabiliyor.
+- README ve `ai-context.md` benchmark scriptiyle guncellendi.
+- Dogrulama: `node --check scripts/benchmark-user-sessions.mjs`, `corepack pnpm bench:sessions -- --usersFile scripts/benchmark-user-sessions.sample.json --sessions 12 --durationSec 60 --dry-run`, `corepack pnpm test` basarili.
+
+## Iteration: Benchmark User Provisioning
+### Plan
+- [x] Benchmark icin gerekli 30 kullanicilik rol/birim dagilimini tanimla
+- [x] Kullanici hazirlama scripti ekle ve sample benchmark dosyasini otomatik doldur
+- [x] Kullanicilari veritabanina yaz ve sample dosyayi guncelle
+- [x] 30 oturumluk dry-run plan dogrulamasi yap
+- [x] README / ai-context / lessons kayitlarini guncelle
+
+### Review
+- `scripts/prepare-benchmark-users.mjs` eklendi; 30 benchmark kullanicisini (`2 admin`, `4 production_manager`, `6 warehouse_manager`, `18 hat`) idempotent sekilde olusturup/guncelliyor.
+- Hat kullanicilari `TABLET1`, `TABLET2`, `BOYA`, `KAPSUL`, `BLISTER1`, `BLISTER2`, `PAKET`, `HMMD_KARISIM` birimlerine dagitildi.
+- Script DB'de `Created: 30`, `Updated: 0` sonucu ile benchmark kullanicilarini olusturdu ve `scripts/benchmark-user-sessions.sample.json` dosyasini bu gercek kullanicilarla doldurdu.
+- `pnpm prepare:bench-users -- --dry-run` ve `pnpm bench:sessions -- --usersFile scripts/benchmark-user-sessions.sample.json --sessions 30 --durationSec 120 --dry-run` ile plan dogrulandi.
+- Dogrulama: `node --check scripts/prepare-benchmark-users.mjs`, `node --check scripts/benchmark-user-sessions.mjs`, `corepack pnpm test` basarili.
+
+## Iteration: Temporary Demo Print Form
+### Plan
+- [x] Uretim emri olustur ekraninin yazdirma/preview kalibini referans alarak DB'ye bagli olmayan gecici demo sayfasini ekle
+- [x] Yeni demo formu icin is emri alanlarini istenen sozlesmeye gore uygula
+- [x] Form altina hizli yazdir ve onizleme iceren aksiyon akisini ekle
+- [x] Dashboard ve header navigasyonuna bu gecici sayfa icin belirgin aksiyon ekle
+- [x] Typecheck ve build ile davranisi dogrula, review notunu yaz
+
+### Review
+- `/demo-print` protected route'u eklendi; mevcut production-order create permission'i ile ayni rol grubuna acildi ve DB'ye kayit yazmayan client-side demo akisi kuruldu.
+- `DemoPrintForm` ile istenen alanlar tek section altinda toplandi; `Prospektüs`, `İhracat / İç Piyasa`, `Numune / Müşteri Talebi / Stok` ve `Ambalaj Türü` alanlari exclusive checkbox gruplari olarak eklendi.
+- Form altinda hem dogrudan `Yazdır (PDF)` hem `Önizle` aksiyonu verildi; onizleme modalinda ikinci bir yazdir butonu bulunuyor ve cikti logo ile aciliyor.
+- Header nav icine turuncu vurgulu `Demo Çıktı` linki, dashboard aksiyon kartlari icine de ayirt edici `Demo Çıktı Formu` karti eklendi.
+- Dogrulama: `corepack pnpm typecheck`, `corepack pnpm build` basarili.
+- Kullanici geri bildirimi uzerine ekrandaki `Demo` dili tamamen kaldirildi; gorunen basliklar `Üretim İş Emri Formu` olarak netlestirildi ve yazdirma cikti alt metni sadeleştirildi.
+- Fixed `Canlı İşlem Akışı` panelinin form alt aksiyonlarini kapatmamasi icin sayfaya ek alt bosluk eklendi.
+
+## Iteration: NeoBrutalism Design Overhaul
+### Plan
+- [x] Global theme tokenlarini ve ana layout shell'ini NeoBrutalism diline tasimak
+- [x] Ortak UI primitive'lerini (button, input, card, select, dialog, table) kalin kenar ve sert golgelerle guncellemek
+- [x] Header, dashboard, page intro ve section panel yuzeylerini yeni estetik yonde yenilemek
+- [x] Login ekranini ayni tasarim diline cekmek
+- [x] Typecheck ve build ile dogrulayip review notunu eklemek
+
+### Review
+- `src/app/globals.css` bastan kurgulandi; krem zemin, kalin siyah konturler, sert offset golgeler ve canli vurgu renkleriyle tum uygulama icin NeoBrutalism token seti kuruldu.
+- Ortak UI primitive'leri (`button`, `input`, `card`, `dialog`, `select`, `table`) tek tek yeni dilde sertlestirildi; boylece form, modal ve tablo ekranlari yeni stile otomatik olarak tasindi.
+- `AppHeader`, `PageIntro`, `SectionPanel`, protected layout shell'i ve dashboard hero/kartlari neobrutal bloklar, chipler ve vurgu renkleriyle yeniden ele alindi.
+- Login ekraninin dis kabugu ve form karti ayni estetik hatta cekildi; yumusak SaaS gorunumu yerine daha afisvari, kalin ve karakterli bir giris sayfasi olustu.
+- `AuditLiveFeed` paneli de ayni sert kontur/golge sistemiyle uyumlu hale getirildi; onceki hafif/transparan tasarim dili kaldirildi.
+- Dogrulama: `corepack pnpm typecheck`, `corepack pnpm build` basarili.

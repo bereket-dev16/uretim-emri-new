@@ -25,6 +25,7 @@ const ROLE_LABELS: Record<SessionDTO['role'], string> = {
 interface NavItem {
   href: string;
   label: string;
+  tone?: 'default' | 'highlight';
 }
 
 function buildNavItems(role: SessionDTO['role']): NavItem[] {
@@ -38,6 +39,7 @@ function buildNavItems(role: SessionDTO['role']): NavItem[] {
     items.push({ href: '/stocks/create', label: 'Stok Giriş' });
     items.push({ href: '/stocks', label: 'Stok Takip' });
     items.push({ href: '/production-orders/create', label: 'Üretim Emri Oluştur' });
+    items.push({ href: '/demo-print', label: 'İş Emri Formu', tone: 'highlight' });
     items.push({ href: '/production-orders', label: 'Üretim Emirleri' });
   }
 
@@ -71,13 +73,37 @@ export function AppHeader({ session }: AppHeaderProps) {
     return activeHref === href;
   }
 
+  function getDesktopNavClass(item: NavItem): string {
+    if (item.tone === 'highlight') {
+      return isActivePath(item.href)
+        ? 'border-[3px] border-foreground bg-[#ff6aa9] text-foreground shadow-[3px_3px_0_#161616]'
+        : 'border-[3px] border-foreground bg-[#fff176] text-foreground shadow-[3px_3px_0_#161616] hover:bg-[#ffdf5f]';
+    }
+
+    return isActivePath(item.href)
+      ? 'border-[3px] border-foreground bg-primary text-primary-foreground shadow-[3px_3px_0_#161616]'
+      : 'border-[3px] border-foreground bg-card text-foreground shadow-[3px_3px_0_#161616] hover:bg-accent';
+  }
+
+  function getMobileNavClass(item: NavItem): string {
+    if (item.tone === 'highlight') {
+      return isActivePath(item.href)
+        ? 'border-foreground bg-[#ff6aa9] text-foreground'
+        : 'border-foreground bg-[#fff176] text-foreground hover:bg-[#ffdf5f]';
+    }
+
+    return isActivePath(item.href)
+      ? 'border-foreground bg-primary text-primary-foreground'
+      : 'border-foreground bg-card text-foreground hover:bg-accent';
+  }
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/92 backdrop-blur supports-[backdrop-filter]:bg-background/78">
+    <header className="sticky top-0 z-50 w-full border-b-[4px] border-foreground bg-[#fff7ea]">
       <div className="w-full px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3 lg:gap-4">
             <Link href={homePath} className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-white shadow-sm">
+              <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border-[3px] border-foreground bg-[#96b4ff] shadow-[4px_4px_0_#161616]">
                 <Image
                   src="/bereket-logo.png"
                   alt="Bereket"
@@ -88,24 +114,19 @@ export function AppHeader({ session }: AppHeaderProps) {
                 />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-base font-semibold text-foreground">Depo/Stok</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">Operasyon paneli</div>
+                <div className="truncate text-lg font-black tracking-[-0.05em] text-foreground">Depo/Stok</div>
+                <div className="mt-0.5 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">Operasyon paneli</div>
               </div>
             </Link>
           </div>
 
           <nav className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
-            <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border/70 bg-white px-2 py-2 shadow-sm">
+            <div className="flex flex-wrap items-center justify-center gap-2 rounded-[24px] border-[4px] border-foreground bg-card px-3 py-3 shadow-[6px_6px_0_#161616]">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={cn(
-                    'rounded-xl px-3 py-2 text-sm font-medium transition-colors',
-                    isActivePath(item.href)
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-                  )}
+                  className={cn('rounded-xl px-3 py-2 text-sm font-medium transition-colors', getDesktopNavClass(item))}
                 >
                   {item.label}
                 </Link>
@@ -114,10 +135,10 @@ export function AppHeader({ session }: AppHeaderProps) {
                 <Link
                   href="/admin/users"
                   className={cn(
-                    'rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+                    'rounded-[18px] px-3 py-2 text-sm font-black transition-colors',
                     isActivePath('/admin/users')
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                      ? 'border-[3px] border-foreground bg-primary text-primary-foreground shadow-[3px_3px_0_#161616]'
+                      : 'border-[3px] border-foreground bg-[#fff176] text-foreground shadow-[3px_3px_0_#161616] hover:bg-accent'
                   )}
                 >
                   Admin Paneli
@@ -127,13 +148,13 @@ export function AppHeader({ session }: AppHeaderProps) {
           </nav>
 
           <div className="flex items-center justify-between gap-3 lg:justify-end">
-            <div className="hidden rounded-2xl border border-border/70 bg-white px-3 py-2 shadow-sm sm:flex sm:items-center sm:gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <div className="hidden rounded-[22px] border-[4px] border-foreground bg-card px-3 py-2 shadow-[5px_5px_0_#161616] sm:flex sm:items-center sm:gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-foreground bg-[#8bf1bd] text-foreground">
                 <ShieldCheck className="h-4 w-4" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold leading-none text-foreground">{session.username}</span>
-                <span className="mt-1 text-xs text-muted-foreground">
+                <span className="text-sm font-black leading-none tracking-[-0.03em] text-foreground">{session.username}</span>
+                <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                   {ROLE_LABELS[session.role]}
                   {session.hatUnitCode ? ` • ${session.hatUnitCode}` : ''}
                 </span>
@@ -150,10 +171,8 @@ export function AppHeader({ session }: AppHeaderProps) {
             key={item.href}
             href={item.href}
             className={cn(
-              'whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-medium shadow-sm transition-colors',
-              isActivePath(item.href)
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border/70 bg-white text-muted-foreground hover:text-foreground'
+              'whitespace-nowrap rounded-[18px] border-[3px] px-3 py-2 text-sm font-black shadow-[3px_3px_0_#161616] transition-colors',
+              getMobileNavClass(item)
             )}
           >
             {item.label}
@@ -163,10 +182,10 @@ export function AppHeader({ session }: AppHeaderProps) {
           <Link
             href="/admin/users"
             className={cn(
-              'whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-medium shadow-sm transition-colors',
+              'whitespace-nowrap rounded-[18px] border-[3px] px-3 py-2 text-sm font-black shadow-[3px_3px_0_#161616] transition-colors',
               isActivePath('/admin/users')
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border/70 bg-white text-muted-foreground hover:text-foreground'
+                ? 'border-foreground bg-primary text-primary-foreground'
+                : 'border-foreground bg-[#fff176] text-foreground hover:bg-accent'
             )}
           >
             Admin Paneli
