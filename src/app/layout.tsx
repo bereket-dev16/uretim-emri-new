@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Depo/Stok Yönetimi',
-  description: 'LAN ortamı için performans odaklı depo ve stok yönetimi uygulaması.'
+  title: 'Üretim Emri Sistemi',
+  description: 'Üretim emri oluşturma, sevk ve birim tamamlama akışı için iç operasyon uygulaması.'
 };
 
 export default function RootLayout({

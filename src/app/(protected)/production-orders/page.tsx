@@ -4,59 +4,73 @@ import { ProductionOrderCardList } from '@/components/production-orders/Producti
 import { PageIntro } from '@/components/layout/PageIntro';
 import { SectionPanel } from '@/components/layout/SectionPanel';
 import { Button } from '@/components/ui/button';
-import { listProductionOrders, getUnitCodeByRole } from '@/modules/production-orders/service';
+import { listProductionOrders, listProductionUnits } from '@/modules/production-orders/service';
 import { PERMISSIONS } from '@/modules/rbac/constants';
 import { requirePageSession } from '@/shared/security/auth-guards';
-import type { Role } from '@/shared/types/domain';
 
-function canDeleteProductionOrder(role: Role): boolean {
-  return role === 'admin' || role === 'production_manager' || role === 'warehouse_manager';
+interface ProductionOrdersListPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function ProductionOrdersListPage() {
-  const session = await requirePageSession({ permission: PERMISSIONS.PRODUCTION_ORDERS_VIEW });
-  const items = await listProductionOrders({
-    scope: 'all',
-    actorRole: session.role,
-    actorUnitCode: session.hatUnitCode ?? getUnitCodeByRole(session.role)
-  });
+function pickPage(value: string | string[] | undefined): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
 
-  const canCreate =
-    session.role === 'admin' || session.role === 'production_manager' || session.role === 'warehouse_manager';
+export default async function ProductionOrdersListPage({
+  searchParams
+}: ProductionOrdersListPageProps) {
+  const session = await requirePageSession({ permission: PERMISSIONS.PRODUCTION_ORDERS_VIEW });
+  const page = pickPage((await searchParams)?.page);
+  const pageSize = 10;
+  const [payload, productionUnits] = await Promise.all([
+    listProductionOrders({
+      scope: 'active',
+      actorRole: session.role,
+      actorUnitCode: session.hatUnitCode,
+      page,
+      pageSize
+    }),
+    listProductionUnits()
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(payload.total / pageSize));
 
   return (
-    <div className="mx-auto flex w-full max-w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="page-shell space-y-6">
       <PageIntro
         badge="Üretim"
-        title="Üretim emirleri"
-        description="Oluşturulan emirleri kart görünümünde açın ve süreci buradan izleyin."
+        title="Devam Eden Emirler"
+        description="Aktif emirleri açın, sevk geçmişini izleyin ve açık adım tamamlandığında sonraki birime yönlendirin."
         actions={
-          <>
-            {canCreate && (
-              <Button asChild>
-                <Link href="/production-orders/create">Yeni emir</Link>
-              </Button>
-            )}
-            {(session.role === 'admin' || session.role === 'warehouse_manager') && (
-              <Button variant="outline" asChild>
-                <Link href="/production-orders/warehouse">Gelen emirler</Link>
-              </Button>
-            )}
-            {(session.role === 'admin' || session.role === 'production_manager') && (
-              <Button variant="outline" asChild>
-                <Link href="/production-orders/monitor">Süreç takibi</Link>
-              </Button>
-            )}
-          </>
+          <Button asChild>
+            <Link href="/production-orders/create">Yeni Emir</Link>
+          </Button>
         }
       />
 
-      <SectionPanel title="Liste" description="Kartı açarak detayları görebilirsiniz.">
+      <SectionPanel
+        title="Aktif Liste"
+        description="Kapalı görünümde özet, açık görünümde form alanları, ekler ve sevk tarihçesi yer alır."
+        action={
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <span>Sayfa {page} / {totalPages}</span>
+            <Button variant="outline" size="sm" asChild disabled={page <= 1}>
+              <Link href={`/production-orders?page=${Math.max(1, page - 1)}`}>Önceki</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild disabled={page >= totalPages}>
+              <Link href={`/production-orders?page=${Math.min(totalPages, page + 1)}`}>Sonraki</Link>
+            </Button>
+          </div>
+        }
+      >
         <ProductionOrderCardList
-          items={items}
-          pollScope="all"
-          canDelete={canDeleteProductionOrder(session.role)}
-          emptyMessage="Henüz oluşturulmuş üretim emri bulunmuyor."
+          initialItems={payload.items}
+          scope="active"
+          page={page}
+          pageSize={pageSize}
+          productionUnits={productionUnits}
         />
       </SectionPanel>
     </div>

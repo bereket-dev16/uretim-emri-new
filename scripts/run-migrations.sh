@@ -25,6 +25,7 @@ if command -v psql >/dev/null 2>&1; then
   psql "$DATABASE_URL" -f db/migrations/009_hat_role_and_production_units.sql
   psql "$DATABASE_URL" -f db/migrations/010_seed_hat_role_permissions.sql
   psql "$DATABASE_URL" -f db/migrations/011_add_production_order_delete_permission.sql
+  psql "$DATABASE_URL" -f db/migrations/012_production_orders_reset.sql
 else
   node scripts/run-migrations.mjs
 fi

@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 import {
   createProductionOrder,
-  getUnitCodeByRole,
   listProductionOrders
 } from '@/modules/production-orders/service';
 import { PERMISSIONS } from '@/modules/rbac/constants';
@@ -15,12 +14,10 @@ import {
   productionOrderListQuerySchema
 } from '@/shared/validation/production-order';
 
-function scopePermission(scope: 'all' | 'warehouse' | 'monitor' | 'unit'): string {
+function getScopePermission(scope: 'active' | 'completed' | 'incoming' | 'unit'): string {
   switch (scope) {
-    case 'warehouse':
-      return PERMISSIONS.PRODUCTION_ORDERS_WAREHOUSE;
-    case 'monitor':
-      return PERMISSIONS.PRODUCTION_ORDERS_MONITOR;
+    case 'incoming':
+      return PERMISSIONS.PRODUCTION_ORDERS_INCOMING;
     case 'unit':
       return PERMISSIONS.PRODUCTION_ORDERS_UNIT_TASK;
     default:
@@ -37,21 +34,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       throw new AppError({
         status: 400,
         code: 'VALIDATION_ERROR',
-        publicMessage: 'Üretim emri listeleme parametreleri geçersiz.',
+        publicMessage: 'Listeleme parametreleri geçersiz.',
         details: parsed.error.flatten()
       });
     }
 
-    const permission = scopePermission(parsed.data.scope);
-    const session = await requireApiSession(request, requestId, permission);
+    const session = await requireApiSession(
+      request,
+      requestId,
+      getScopePermission(parsed.data.scope)
+    );
 
-    const items = await listProductionOrders({
+    const payload = await listProductionOrders({
       scope: parsed.data.scope,
       actorRole: session.role,
-      actorUnitCode: session.hatUnitCode ?? getUnitCodeByRole(session.role)
+      actorUnitCode: session.hatUnitCode,
+      page: parsed.data.page,
+      pageSize: parsed.data.pageSize
     });
 
-    return NextResponse.json({ items });
+    return NextResponse.json(payload);
   });
 }
 
@@ -70,13 +72,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    const created = await createProductionOrder({
+    const item = await createProductionOrder({
       input: parsed.data,
-      actorUserId: session.userId,
-      actorRole: session.role,
-      requestId
+      actorUserId: session.userId
     });
 
-    return NextResponse.json({ item: created }, { status: 201 });
+    return NextResponse.json({ item }, { status: 201 });
   });
 }

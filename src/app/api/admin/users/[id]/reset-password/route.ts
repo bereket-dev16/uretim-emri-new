@@ -17,11 +17,7 @@ interface RouteContext {
 export async function POST(request: NextRequest, context: RouteContext): Promise<NextResponse> {
   return withApiHandler(request, async ({ requestId }) => {
     const params = await context.params;
-    const session = await requireApiSession(
-      request,
-      requestId,
-      PERMISSIONS.ADMIN_USERS_RESET_PASSWORD
-    );
+    await requireApiSession(request, requestId, PERMISSIONS.ADMIN_USERS_RESET_PASSWORD);
 
     const body = await request.json();
     const parsed = resetPasswordSchema.safeParse(body);
@@ -37,9 +33,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
 
     await resetUserPassword({
       id: params.id,
-      password: parsed.data.password,
-      actorUserId: session.userId,
-      requestId
+      password: parsed.data.password
     });
 
     return NextResponse.json({ success: true });

@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation';
 
-export default function HomePage(): never {
-  redirect('/dashboard');
+import { requirePageSession } from '@/shared/security/auth-guards';
+import { getDefaultHomePathForRole } from '@/shared/security/role-home';
+
+export default async function HomePage(): Promise<never> {
+  const session = await requirePageSession();
+  redirect(getDefaultHomePathForRole(session.role));
 }

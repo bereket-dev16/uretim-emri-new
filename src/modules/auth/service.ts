@@ -9,8 +9,6 @@ import {
 import { verifyPassword } from '@/shared/security/password';
 import type { Role, SessionDTO } from '@/shared/types/domain';
 
-import { createAuditLog } from '@/modules/audit/service';
-
 export interface SessionRecord extends SessionDTO {
   sessionId: string;
 }
@@ -18,6 +16,13 @@ export interface SessionRecord extends SessionDTO {
 interface SessionCacheEntry {
   session: SessionRecord | null;
   cachedAt: number;
+}
+
+interface LoginParams {
+  username: string;
+  password: string;
+  ip: string | null;
+  userAgent: string | null;
 }
 
 function getSessionCacheTtlMs(): number {
@@ -54,14 +59,6 @@ function writeSessionCache(tokenHash: string, session: SessionRecord | null): vo
   });
 }
 
-interface LoginParams {
-  username: string;
-  password: string;
-  ip: string | null;
-  userAgent: string | null;
-  requestId: string;
-}
-
 export async function login(params: LoginParams): Promise<{
   sessionToken: string;
   session: SessionDTO;
@@ -86,19 +83,6 @@ export async function login(params: LoginParams): Promise<{
   const user = userResult.rows[0];
 
   if (!user || !user.is_active) {
-    await createAuditLog({
-      actorUserId: null,
-      actionType: 'LOGIN_FAILED',
-      entityType: 'auth',
-      entityId: null,
-      payload: {
-        username: params.username,
-        reason: 'user_not_found_or_inactive',
-        ip: params.ip
-      },
-      requestId: params.requestId
-    });
-
     throw new AppError({
       status: 401,
       code: 'INVALID_CREDENTIALS',
@@ -109,19 +93,6 @@ export async function login(params: LoginParams): Promise<{
   const passwordValid = await verifyPassword(user.password_hash, params.password);
 
   if (!passwordValid) {
-    await createAuditLog({
-      actorUserId: user.id,
-      actionType: 'LOGIN_FAILED',
-      entityType: 'auth',
-      entityId: user.id,
-      payload: {
-        username: params.username,
-        reason: 'invalid_password',
-        ip: params.ip
-      },
-      requestId: params.requestId
-    });
-
     throw new AppError({
       status: 401,
       code: 'INVALID_CREDENTIALS',
@@ -158,20 +129,6 @@ export async function login(params: LoginParams): Promise<{
     [user.id]
   );
 
-  await createAuditLog({
-    actorUserId: user.id,
-    actionType: 'LOGIN_SUCCESS',
-    entityType: 'auth',
-    entityId: user.id,
-    payload: {
-      username: user.username,
-      role: user.role,
-      hatUnitCode: user.hat_unit_code,
-      ip: params.ip
-    },
-    requestId: params.requestId
-  });
-
   const sessionRecord: SessionRecord = {
     sessionId: sessionInsertResult.rows[0]?.id ?? '',
     userId: user.id,
@@ -180,6 +137,7 @@ export async function login(params: LoginParams): Promise<{
     hatUnitCode: user.hat_unit_code,
     expiresAt: expiresAt.toISOString()
   };
+
   writeSessionCache(sessionTokenHash, sessionRecord);
 
   return {
@@ -269,29 +227,17 @@ export async function getSessionByToken(
   return sessionRecord;
 }
 
-export async function logoutByToken(sessionToken: string, requestId: string): Promise<void> {
+export async function logoutByToken(sessionToken: string, _requestId: string): Promise<void> {
   const tokenHash = hashSessionToken(sessionToken);
-  sessionCache.delete(tokenHash);
 
-  const result = await queryDb<{ id: string; user_id: string }>(
+  await queryDb(
     `
       UPDATE sessions
-      SET revoked_at = NOW()
+      SET revoked_at = COALESCE(revoked_at, NOW())
       WHERE token_hash = $1
-        AND revoked_at IS NULL
-      RETURNING id, user_id
     `,
     [tokenHash]
   );
 
-  if (result.rowCount && result.rows[0]) {
-    await createAuditLog({
-      actorUserId: result.rows[0].user_id,
-      actionType: 'LOGOUT',
-      entityType: 'auth',
-      entityId: result.rows[0].id,
-      payload: {},
-      requestId
-    });
-  }
+  writeSessionCache(tokenHash, null);
 }

@@ -1,6 +1,6 @@
 import { UsersAdminPanel } from '@/components/admin/UsersAdminPanel';
 import { PageIntro } from '@/components/layout/PageIntro';
-import { listActiveProductionUnits } from '@/modules/production-orders/service';
+import { listProductionUnits } from '@/modules/production-orders/service';
 import { PERMISSIONS } from '@/modules/rbac/constants';
 import { listUsers } from '@/modules/users/service';
 import { requirePageSession } from '@/shared/security/auth-guards';
@@ -12,7 +12,7 @@ export default async function AdminUsersPage() {
   });
 
   const users = await listUsers();
-  const productionUnits = await listActiveProductionUnits();
+  const productionUnits = await listProductionUnits();
 
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">

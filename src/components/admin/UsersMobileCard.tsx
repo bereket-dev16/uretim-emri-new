@@ -26,9 +26,7 @@ function RoleOptions() {
     <>
       <SelectItem value="admin">Admin</SelectItem>
       <SelectItem value="production_manager">Üretim Müdürü</SelectItem>
-      <SelectItem value="warehouse_manager">Depo Sorumlusu</SelectItem>
       <SelectItem value="hat">Hat Operatörü</SelectItem>
-      <SelectItem value="tablet1">tablet1 (legacy)</SelectItem>
     </>
   );
 }
@@ -102,13 +100,11 @@ export function UsersMobileCard({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Seçilmedi</SelectItem>
-            {productionUnits
-              .filter((unit) => unit.code !== 'DEPO')
-              .map((unit) => (
-                <SelectItem key={unit.code} value={unit.code}>
-                  {unit.name}
-                </SelectItem>
-              ))}
+            {productionUnits.map((unit) => (
+              <SelectItem key={unit.code} value={unit.code}>
+                {unit.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className="rounded-xl border border-border/70 bg-slate-50 px-3 py-2 text-sm text-muted-foreground">

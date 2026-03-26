@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { login } from '@/modules/auth/service';
 import { getRequestClientMetadata } from '@/shared/security/auth-guards';
 import { SESSION_COOKIE_NAME, sessionCookieSecure } from '@/shared/security/session';
+import { logInfo } from '@/shared/logging/logger';
 import { loginInputSchema } from '@/shared/validation/auth';
 import { AppError } from '@/shared/errors/app-error';
 import { withApiHandler } from '@/shared/http/with-api-handler';
@@ -25,7 +26,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const metadata = getRequestClientMetadata(request);
     const result = await login({
       ...parsed.data,
-      requestId,
       ip: metadata.ip,
       userAgent: metadata.userAgent
     });
@@ -40,6 +40,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sameSite: 'lax',
       expires: new Date(result.session.expiresAt),
       path: '/'
+    });
+
+    logInfo('Login cookie issued', requestId, {
+      host: request.headers.get('host'),
+      origin: request.headers.get('origin'),
+      referer: request.headers.get('referer'),
+      cookieName: SESSION_COOKIE_NAME,
+      secure: sessionCookieSecure()
     });
 
     return response;

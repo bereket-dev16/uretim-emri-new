@@ -67,7 +67,8 @@ async function run() {
     path.join('db', 'migrations', '008_seed_tablet1_user.sql'),
     path.join('db', 'migrations', '009_hat_role_and_production_units.sql'),
     path.join('db', 'migrations', '010_seed_hat_role_permissions.sql'),
-    path.join('db', 'migrations', '011_add_production_order_delete_permission.sql')
+    path.join('db', 'migrations', '011_add_production_order_delete_permission.sql'),
+    path.join('db', 'migrations', '012_production_orders_reset.sql')
   ];
 
   await client.connect();

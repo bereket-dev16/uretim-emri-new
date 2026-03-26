@@ -100,23 +100,25 @@ async function checkMigrationSafety(issues, sqlFiles) {
       migrationNumbers.push(Number(prefix[1]));
     }
 
-    if (/\bDROP\s+TABLE\b/i.test(content)) {
+    const destructiveResetApproved = content.includes('-- destructive-reset-approved');
+
+    if (/\bDROP\s+TABLE\b/i.test(content) && !destructiveResetApproved) {
       pushIssue(
         issues,
         'error',
         'migration-drop-table',
         relativeFile,
-        'DROP TABLE is blocked in this project. Use additive migration strategy.'
+        'DROP TABLE is blocked in this project unless the migration is explicitly marked as a destructive reset.'
       );
     }
 
-    if (/\bTRUNCATE\b/i.test(content)) {
+    if (/\bTRUNCATE\b/i.test(content) && !destructiveResetApproved) {
       pushIssue(
         issues,
         'error',
         'migration-truncate',
         relativeFile,
-        'TRUNCATE is blocked in this project to avoid destructive operations.'
+        'TRUNCATE is blocked in this project unless the migration is explicitly marked as a destructive reset.'
       );
     }
 

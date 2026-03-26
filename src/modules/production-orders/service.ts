@@ -1,146 +1,147 @@
-import type { PoolClient } from 'pg';
+import { randomUUID } from 'node:crypto';
 
-import { AppError } from '@/shared/errors/app-error';
+import type { PoolClient, QueryResultRow } from 'pg';
+
+import { getProductionUnitLabel } from '@/modules/production-orders/constants';
 import { queryDb, withTransaction } from '@/shared/db/client';
+import { AppError } from '@/shared/errors/app-error';
+import { deleteStorageObject, downloadStorageObject, uploadStorageObject } from '@/shared/storage/supabase-storage';
 import type {
-  ProductionDispatchStatus,
+  PaginatedProductionOrdersDTO,
+  ProductionOrderAttachmentDTO,
+  ProductionOrderDispatchDTO,
   ProductionOrderListItemDTO,
-  ProductionOrderMaterialDTO,
-  ProductionUnitDTO,
+  ProductionOrderStatus,
   ProductionUnit,
+  ProductionUnitDTO,
+  ProductionUnitGroup,
   Role
 } from '@/shared/types/domain';
 
+type DbClient = Pick<PoolClient, 'query'>;
+
 interface ProductionOrderCreateInput {
   orderDate: string;
-  orderNo: string;
+  orderNo: number;
   customerName: string;
-  marketScope: 'ihracat' | 'ic_piyasa';
-  demandSource: 'numune' | 'musteri_talebi' | 'stok';
-  orderQuantity: string;
+  orderQuantity: number;
   deadlineDate: string;
   finalProductName: string;
+  totalPackagingQuantity: number;
+  color: string;
+  moldText: string;
+  hasProspectus: boolean;
+  marketScope: 'ihracat' | 'ic_piyasa';
+  demandSource: 'numune' | 'musteri_talebi' | 'stok';
   packagingType: 'kapsul' | 'tablet' | 'sivi' | 'sase' | 'softjel';
-  totalAmountText: string;
-  dispatchUnits: ProductionUnit[];
-  materials: Array<{
-    materialProductType: string;
-    materialName: string;
-    materialQuantityText: string;
-  }>;
+  plannedRawUnitCode: ProductionUnit;
+  plannedMachineUnitCode: ProductionUnit | null;
+}
+
+interface ListProductionOrdersParams {
+  scope: 'active' | 'completed' | 'incoming' | 'unit';
+  actorRole: Role;
+  actorUnitCode: string | null;
+  page: number;
+  pageSize: number;
 }
 
 interface CreateProductionOrderParams {
   input: ProductionOrderCreateInput;
   actorUserId: string;
-  actorRole: Role;
-  requestId: string;
 }
 
-interface DeleteProductionOrderParams {
+interface DispatchProductionOrderParams {
+  id: string;
+  unitCode: ProductionUnit;
+  actorUserId: string;
+}
+
+interface FinishProductionOrderParams {
   id: string;
   actorUserId: string;
-  requestId: string;
 }
 
-interface ListProductionOrdersParams {
-  scope: 'all' | 'warehouse' | 'monitor' | 'unit';
-  actorRole: Role;
-  actorUnitCode: ProductionUnit | null;
-  limit?: number;
+interface AcceptDispatchParams {
+  dispatchId: string;
+  actorUserId: string;
+  actorUnitCode: string | null;
 }
 
-interface ProductionOrderRow {
-  id: string;
-  order_date: Date | string;
-  order_no: string;
-  customer_name: string;
-  market_scope: 'ihracat' | 'ic_piyasa';
-  demand_source: 'numune' | 'musteri_talebi' | 'stok';
-  order_quantity: string;
-  deadline_date: Date | string;
-  final_product_name: string;
-  packaging_type: 'kapsul' | 'tablet' | 'sivi' | 'sase' | 'softjel';
-  total_amount_text: string;
-  dispatch_unit_code: ProductionUnit;
-  created_by_role: Role;
-  created_at: Date | string;
-  materials_json: unknown;
-  dispatches_json: unknown;
+interface CompleteDispatchParams extends AcceptDispatchParams {
+  reportedOutputQuantity: number;
 }
 
-interface ProductionUnitRow {
+interface AttachmentParams {
+  orderId: string;
+  file: File;
+  actorUserId: string;
+}
+
+interface ProductionUnitRow extends QueryResultRow {
   code: string;
   name: string;
+  unit_group: ProductionUnitGroup;
   is_active: boolean;
 }
 
-const BASE_SELECT = `
-  SELECT
-    o.id,
-    o.order_date,
-    o.order_no,
-    o.customer_name,
-    o.market_scope,
-    o.demand_source,
-    o.order_quantity,
-    o.deadline_date,
-    o.final_product_name,
-    o.packaging_type,
-    o.total_amount_text,
-    o.dispatch_unit_code,
-    o.created_by_role,
-    o.created_at,
-    COALESCE(
-      (
-        SELECT jsonb_agg(
-          jsonb_build_object(
-            'id', m.id,
-            'materialProductType', m.material_product_type,
-            'materialName', m.material_name,
-            'materialQuantityText', m.material_quantity_text,
-            'isAvailable', m.is_available,
-            'checkedAt', m.checked_at,
-            'checkedByUsername', checked_user.username
-          )
-          ORDER BY m.created_at ASC
-        )
-        FROM production_order_materials m
-        LEFT JOIN users checked_user ON checked_user.id = m.checked_by
-        WHERE m.production_order_id = o.id
-      ),
-      '[]'::jsonb
-    ) AS materials_json,
-    COALESCE(
-      (
-        SELECT jsonb_agg(
-          jsonb_build_object(
-            'id', d.id,
-            'unitCode', d.unit_code,
-            'unitName', COALESCE(pu.name, d.unit_code),
-            'status', d.status,
-            'dispatchedAt', d.dispatched_at,
-            'acceptedAt', d.accepted_at,
-            'completedAt', d.completed_at
-          )
-          ORDER BY d.created_at ASC
-        )
-        FROM production_order_dispatches d
-        LEFT JOIN production_units pu ON pu.code = d.unit_code
-        WHERE d.production_order_id = o.id
-      ),
-      '[]'::jsonb
-    ) AS dispatches_json
-  FROM production_orders o
-`;
+interface ProductionOrderRow extends QueryResultRow {
+  id: string;
+  order_date: Date | string;
+  order_no: number;
+  customer_name: string;
+  order_quantity: number;
+  deadline_date: Date | string;
+  final_product_name: string;
+  total_packaging_quantity: number;
+  color: string;
+  mold_text: string;
+  has_prospectus: boolean;
+  market_scope: 'ihracat' | 'ic_piyasa';
+  demand_source: 'numune' | 'musteri_talebi' | 'stok';
+  packaging_type: 'kapsul' | 'tablet' | 'sivi' | 'sase' | 'softjel';
+  planned_raw_unit_code: string;
+  planned_machine_unit_code: string | null;
+  status: ProductionOrderStatus;
+  created_by_username: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+interface ProductionOrderDispatchRow extends QueryResultRow {
+  id: string;
+  production_order_id: string;
+  unit_code: string;
+  unit_name: string;
+  unit_group: ProductionUnitGroup;
+  status: 'pending' | 'in_progress' | 'completed';
+  dispatched_at: Date | string;
+  accepted_at: Date | string | null;
+  completed_at: Date | string | null;
+  reported_output_quantity: number | null;
+}
+
+interface ProductionOrderAttachmentRow extends QueryResultRow {
+  id: string;
+  production_order_id: string;
+  original_filename: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: Date | string;
+  uploaded_by_username: string | null;
+  storage_path: string;
+}
+
+interface AttachmentDownloadRecord {
+  id: string;
+  original_filename: string;
+  mime_type: string;
+  storage_path: string;
+}
 
 function toIsoDate(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return date.toISOString().slice(0, 10);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
 }
 
 function toIsoDateTime(value: string | Date): string {
@@ -148,790 +149,961 @@ function toIsoDateTime(value: string | Date): string {
   return date.toISOString();
 }
 
-function parseJsonArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) {
-    return value as T[];
-  }
-
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? (parsed as T[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
+function mapProductionUnit(row: ProductionUnitRow): ProductionUnitDTO {
+  return {
+    code: row.code,
+    name: row.name,
+    unitGroup: row.unit_group,
+    isActive: row.is_active
+  };
 }
 
-function mapOrderRow(row: ProductionOrderRow): ProductionOrderListItemDTO {
-  const materialsRaw = parseJsonArray<{
-    id: string;
-    materialProductType: ProductionOrderMaterialDTO['materialProductType'];
-    materialName: string;
-    materialQuantityText: string;
-    isAvailable: boolean;
-    checkedAt: string | null;
-    checkedByUsername: string | null;
-  }>(row.materials_json);
+function mapDispatch(row: ProductionOrderDispatchRow): ProductionOrderDispatchDTO {
+  return {
+    id: row.id,
+    unitCode: row.unit_code,
+    unitName: row.unit_name,
+    unitGroup: row.unit_group,
+    status: row.status,
+    dispatchedAt: toIsoDateTime(row.dispatched_at),
+    acceptedAt: row.accepted_at ? toIsoDateTime(row.accepted_at) : null,
+    completedAt: row.completed_at ? toIsoDateTime(row.completed_at) : null,
+    reportedOutputQuantity: row.reported_output_quantity
+  };
+}
 
-  const dispatchesRaw = parseJsonArray<{
-    id: string;
-    unitCode: ProductionUnit;
-    unitName: string;
-    status: ProductionDispatchStatus;
-    dispatchedAt: string;
-    acceptedAt: string | null;
-    completedAt: string | null;
-  }>(row.dispatches_json);
+function mapAttachment(row: ProductionOrderAttachmentRow): ProductionOrderAttachmentDTO {
+  return {
+    id: row.id,
+    originalFilename: row.original_filename,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    createdAt: toIsoDateTime(row.created_at),
+    uploadedByUsername: row.uploaded_by_username
+  };
+}
 
+function mapOrderRow(
+  row: ProductionOrderRow,
+  attachments: ProductionOrderAttachmentDTO[],
+  dispatches: ProductionOrderDispatchDTO[]
+): ProductionOrderListItemDTO {
   return {
     id: row.id,
     orderDate: toIsoDate(row.order_date),
-    orderNo: row.order_no,
+    orderNo: Number(row.order_no),
     customerName: row.customer_name,
-    marketScope: row.market_scope,
-    demandSource: row.demand_source,
-    orderQuantity: row.order_quantity,
+    orderQuantity: Number(row.order_quantity),
     deadlineDate: toIsoDate(row.deadline_date),
     finalProductName: row.final_product_name,
+    totalPackagingQuantity: Number(row.total_packaging_quantity),
+    color: row.color,
+    moldText: row.mold_text,
+    hasProspectus: row.has_prospectus,
+    marketScope: row.market_scope,
+    demandSource: row.demand_source,
     packagingType: row.packaging_type,
-    totalAmountText: row.total_amount_text,
-    dispatchUnitCode: row.dispatch_unit_code,
-    createdByRole: row.created_by_role,
+    plannedRawUnitCode: row.planned_raw_unit_code,
+    plannedMachineUnitCode: row.planned_machine_unit_code,
+    status: row.status,
+    createdByUsername: row.created_by_username,
     createdAt: toIsoDateTime(row.created_at),
-    materials: materialsRaw.map((item) => ({
-      id: item.id,
-      materialProductType: item.materialProductType,
-      materialName: item.materialName,
-      materialQuantityText: item.materialQuantityText,
-      isAvailable: Boolean(item.isAvailable),
-      checkedAt: item.checkedAt ? new Date(item.checkedAt).toISOString() : null,
-      checkedByUsername: item.checkedByUsername
-    })),
-    dispatches: dispatchesRaw.map((item) => ({
-      id: item.id,
-      unitCode: item.unitCode,
-      unitName: item.unitName,
-      status: item.status,
-      dispatchedAt: new Date(item.dispatchedAt).toISOString(),
-      acceptedAt: item.acceptedAt ? new Date(item.acceptedAt).toISOString() : null,
-      completedAt: item.completedAt ? new Date(item.completedAt).toISOString() : null
-    }))
+    updatedAt: toIsoDateTime(row.updated_at),
+    attachments,
+    dispatches
   };
 }
 
-function normalizeCreateInput(input: ProductionOrderCreateInput): ProductionOrderCreateInput {
-  const normalizedDispatchUnits = Array.from(
-    new Set(input.dispatchUnits.map((unit) => unit.trim()).filter(Boolean))
+async function getUnitWithClient(client: DbClient, unitCode: string): Promise<ProductionUnitRow | null> {
+  const result = await client.query<ProductionUnitRow>(
+    `
+      SELECT code, name, unit_group, is_active
+      FROM production_units
+      WHERE code = $1
+      LIMIT 1
+    `,
+    [unitCode]
   );
 
-  return {
-    ...input,
-    orderNo: input.orderNo.trim(),
-    customerName: input.customerName.trim(),
-    orderQuantity: input.orderQuantity.trim(),
-    finalProductName: input.finalProductName.trim(),
-    totalAmountText: input.totalAmountText.trim(),
-    dispatchUnits: normalizedDispatchUnits,
-    materials: input.materials.map((item) => ({
-      materialProductType: item.materialProductType,
-      materialName: item.materialName.trim(),
-      materialQuantityText: item.materialQuantityText.trim()
-    }))
-  };
+  return result.rows[0] ?? null;
+}
+
+async function requireUnitWithGroup(
+  client: DbClient,
+  unitCode: string,
+  expectedGroup: ProductionUnitGroup
+): Promise<ProductionUnitRow> {
+  const unit = await getUnitWithClient(client, unitCode);
+
+  if (!unit || !unit.is_active) {
+    throw new AppError({
+      status: 400,
+      code: 'UNIT_NOT_FOUND',
+      publicMessage: 'Seçilen birim bulunamadı.'
+    });
+  }
+
+  if (unit.unit_group !== expectedGroup) {
+    throw new AppError({
+      status: 400,
+      code: 'UNIT_GROUP_MISMATCH',
+      publicMessage: 'Seçilen birim bu alan için uygun değil.'
+    });
+  }
+
+  return unit;
 }
 
 async function getOrderByIdWithClient(
-  client: Pick<PoolClient, 'query'>,
-  id: string
+  client: DbClient,
+  orderId: string
 ): Promise<ProductionOrderListItemDTO | null> {
-  const result = await client.query<ProductionOrderRow>(
+  const orderResult = await client.query<ProductionOrderRow>(
     `
-      ${BASE_SELECT}
+      SELECT
+        o.id,
+        o.order_date,
+        o.order_no,
+        o.customer_name,
+        o.order_quantity,
+        o.deadline_date,
+        o.final_product_name,
+        o.total_packaging_quantity,
+        o.color,
+        o.mold_text,
+        o.has_prospectus,
+        o.market_scope,
+        o.demand_source,
+        o.packaging_type,
+        o.planned_raw_unit_code,
+        o.planned_machine_unit_code,
+        o.status,
+        creator.username AS created_by_username,
+        o.created_at,
+        o.updated_at
+      FROM production_orders o
+      JOIN users creator ON creator.id = o.created_by
       WHERE o.id = $1::uuid
       LIMIT 1
     `,
-    [id]
+    [orderId]
   );
 
-  const row = result.rows[0];
-  return row ? mapOrderRow(row) : null;
-}
+  const orderRow = orderResult.rows[0];
 
-export async function listActiveProductionUnits(): Promise<ProductionUnitDTO[]> {
-  const result = await queryDb<ProductionUnitRow>(
-    `
-      SELECT code, name, is_active
-      FROM production_units
-      WHERE is_active = TRUE
-      ORDER BY name ASC
-    `
-  );
-
-  return result.rows.map((row) => ({
-    code: row.code,
-    name: row.name,
-    isActive: row.is_active
-  }));
-}
-
-export function getUnitCodeByRole(role: Role): ProductionUnit | null {
-  if (role === 'tablet1') {
-    return 'TABLET1';
+  if (!orderRow) {
+    return null;
   }
 
-  return null;
+  const dispatchResult = await client.query<ProductionOrderDispatchRow>(
+    `
+      SELECT
+        d.id,
+        d.production_order_id,
+        d.unit_code,
+        pu.name AS unit_name,
+        pu.unit_group,
+        d.status,
+        d.dispatched_at,
+        d.accepted_at,
+        d.completed_at,
+        d.reported_output_quantity
+      FROM production_order_dispatches d
+      JOIN production_units pu ON pu.code = d.unit_code
+      WHERE d.production_order_id = $1::uuid
+      ORDER BY d.dispatched_at ASC, d.created_at ASC
+    `,
+    [orderId]
+  );
+
+  const attachmentResult = await client.query<ProductionOrderAttachmentRow>(
+    `
+      SELECT
+        a.id,
+        a.production_order_id,
+        a.original_filename,
+        a.mime_type,
+        a.size_bytes,
+        a.created_at,
+        uploader.username AS uploaded_by_username,
+        a.storage_path
+      FROM production_order_attachments a
+      LEFT JOIN users uploader ON uploader.id = a.uploaded_by
+      WHERE a.production_order_id = $1::uuid
+      ORDER BY a.created_at ASC
+    `,
+    [orderId]
+  );
+
+  return mapOrderRow(
+    orderRow,
+    attachmentResult.rows.map(mapAttachment),
+    dispatchResult.rows.map(mapDispatch)
+  );
+}
+
+function buildScopeFilter(params: {
+  scope: ListProductionOrdersParams['scope'];
+  actorUnitCode: string | null;
+  offset?: number;
+}): { whereSql: string; values: unknown[] } {
+  const values: unknown[] = [];
+
+  switch (params.scope) {
+    case 'active':
+      return {
+        whereSql: `WHERE o.status = 'active'`,
+        values
+      };
+    case 'completed':
+      return {
+        whereSql: `WHERE o.status = 'completed'`,
+        values
+      };
+    case 'incoming':
+      if (!params.actorUnitCode) {
+        return { whereSql: `WHERE 1 = 0`, values };
+      }
+      values.push(params.actorUnitCode);
+      return {
+        whereSql: `
+          WHERE o.status = 'active'
+            AND EXISTS (
+              SELECT 1
+              FROM production_order_dispatches d
+              WHERE d.production_order_id = o.id
+                AND d.unit_code = $1
+                AND d.status = 'pending'
+            )
+        `,
+        values
+      };
+    case 'unit':
+      if (!params.actorUnitCode) {
+        return { whereSql: `WHERE 1 = 0`, values };
+      }
+      values.push(params.actorUnitCode);
+      return {
+        whereSql: `
+          WHERE o.status = 'active'
+            AND EXISTS (
+              SELECT 1
+              FROM production_order_dispatches d
+              WHERE d.production_order_id = o.id
+                AND d.unit_code = $1
+                AND d.status = 'in_progress'
+            )
+        `,
+        values
+      };
+    default:
+      return { whereSql: '', values };
+  }
+}
+
+function normalizeFilename(filename: string): string {
+  return filename
+    .normalize('NFKD')
+    .replace(/[^\w.\- ]+/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+}
+
+async function ensureOrderCanAdvance(client: DbClient, orderId: string): Promise<ProductionOrderListItemDTO> {
+  const order = await getOrderByIdWithClient(client, orderId);
+
+  if (!order) {
+    throw new AppError({
+      status: 404,
+      code: 'ORDER_NOT_FOUND',
+      publicMessage: 'Üretim emri bulunamadı.'
+    });
+  }
+
+  if (order.status !== 'active') {
+    throw new AppError({
+      status: 409,
+      code: 'ORDER_ALREADY_COMPLETED',
+      publicMessage: 'Bu üretim emri tamamlanmış durumda.'
+    });
+  }
+
+  const hasOpenDispatch = order.dispatches.some(
+    (dispatch) => dispatch.status === 'pending' || dispatch.status === 'in_progress'
+  );
+
+  if (hasOpenDispatch) {
+    throw new AppError({
+      status: 409,
+      code: 'ORDER_HAS_OPEN_DISPATCH',
+      publicMessage: 'Aktif bir sevk varken yeni bir adım başlatılamaz.'
+    });
+  }
+
+  return order;
+}
+
+export async function listProductionUnits(params?: {
+  unitGroup?: ProductionUnitGroup;
+  activeOnly?: boolean;
+}): Promise<ProductionUnitDTO[]> {
+  const whereParts: string[] = [];
+  const values: unknown[] = [];
+
+  if (params?.unitGroup) {
+    values.push(params.unitGroup);
+    whereParts.push(`unit_group = $${values.length}`);
+  }
+
+  if (params?.activeOnly ?? true) {
+    whereParts.push(`is_active = TRUE`);
+  }
+
+  const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
+
+  const result = await queryDb<ProductionUnitRow>(
+    `
+      SELECT code, name, unit_group, is_active
+      FROM production_units
+      ${whereSql}
+      ORDER BY unit_group ASC, name ASC
+    `,
+    values
+  );
+
+  return result.rows.map(mapProductionUnit);
+}
+
+export async function listProductionOrders(
+  params: ListProductionOrdersParams
+): Promise<PaginatedProductionOrdersDTO> {
+  const page = Math.max(1, params.page);
+  const pageSize = Math.max(1, Math.min(50, params.pageSize));
+  const offset = (page - 1) * pageSize;
+
+  const { whereSql, values } = buildScopeFilter({
+    scope: params.scope,
+    actorUnitCode: params.actorUnitCode
+  });
+
+  const countResult = await queryDb<{ total: number }>(
+    `
+      SELECT COUNT(*)::int AS total
+      FROM production_orders o
+      ${whereSql}
+    `,
+    values
+  );
+
+  const orderValues = [...values, pageSize, offset];
+  const ordersResult = await queryDb<ProductionOrderRow>(
+    `
+      SELECT
+        o.id,
+        o.order_date,
+        o.order_no,
+        o.customer_name,
+        o.order_quantity,
+        o.deadline_date,
+        o.final_product_name,
+        o.total_packaging_quantity,
+        o.color,
+        o.mold_text,
+        o.has_prospectus,
+        o.market_scope,
+        o.demand_source,
+        o.packaging_type,
+        o.planned_raw_unit_code,
+        o.planned_machine_unit_code,
+        o.status,
+        creator.username AS created_by_username,
+        o.created_at,
+        o.updated_at
+      FROM production_orders o
+      JOIN users creator ON creator.id = o.created_by
+      ${whereSql}
+      ORDER BY
+        CASE WHEN o.status = 'active' THEN o.deadline_date END ASC NULLS LAST,
+        o.updated_at DESC,
+        o.created_at DESC
+      LIMIT $${orderValues.length - 1}
+      OFFSET $${orderValues.length}
+    `,
+    orderValues
+  );
+
+  if (ordersResult.rows.length === 0) {
+    return {
+      items: [],
+      total: countResult.rows[0]?.total ?? 0,
+      page,
+      pageSize
+    };
+  }
+
+  const orderIds = ordersResult.rows.map((row) => row.id);
+
+  const dispatchResult = await queryDb<ProductionOrderDispatchRow>(
+    `
+      SELECT
+        d.id,
+        d.production_order_id,
+        d.unit_code,
+        pu.name AS unit_name,
+        pu.unit_group,
+        d.status,
+        d.dispatched_at,
+        d.accepted_at,
+        d.completed_at,
+        d.reported_output_quantity
+      FROM production_order_dispatches d
+      JOIN production_units pu ON pu.code = d.unit_code
+      WHERE d.production_order_id = ANY($1::uuid[])
+      ORDER BY d.dispatched_at ASC, d.created_at ASC
+    `,
+    [orderIds]
+  );
+
+  const attachmentResult = await queryDb<ProductionOrderAttachmentRow>(
+    `
+      SELECT
+        a.id,
+        a.production_order_id,
+        a.original_filename,
+        a.mime_type,
+        a.size_bytes,
+        a.created_at,
+        uploader.username AS uploaded_by_username,
+        a.storage_path
+      FROM production_order_attachments a
+      LEFT JOIN users uploader ON uploader.id = a.uploaded_by
+      WHERE a.production_order_id = ANY($1::uuid[])
+      ORDER BY a.created_at ASC
+    `,
+    [orderIds]
+  );
+
+  const dispatchMap = new Map<string, ProductionOrderDispatchDTO[]>();
+  const attachmentMap = new Map<string, ProductionOrderAttachmentDTO[]>();
+
+  for (const row of dispatchResult.rows) {
+    const list = dispatchMap.get(row.production_order_id) ?? [];
+    list.push(mapDispatch(row));
+    dispatchMap.set(row.production_order_id, list);
+  }
+
+  for (const row of attachmentResult.rows) {
+    const list = attachmentMap.get(row.production_order_id) ?? [];
+    list.push(mapAttachment(row));
+    attachmentMap.set(row.production_order_id, list);
+  }
+
+  return {
+    items: ordersResult.rows.map((row) =>
+      mapOrderRow(row, attachmentMap.get(row.id) ?? [], dispatchMap.get(row.id) ?? [])
+    ),
+    total: countResult.rows[0]?.total ?? 0,
+    page,
+    pageSize
+  };
+}
+
+export async function getProductionOrderById(orderId: string): Promise<ProductionOrderListItemDTO> {
+  const dbClient = {
+    query: ((text: string, values?: unknown[]) => queryDb(text, values)) as DbClient['query']
+  };
+  const order = await getOrderByIdWithClient(
+    dbClient,
+    orderId
+  );
+
+  if (!order) {
+    throw new AppError({
+      status: 404,
+      code: 'ORDER_NOT_FOUND',
+      publicMessage: 'Üretim emri bulunamadı.'
+    });
+  }
+
+  return order;
 }
 
 export async function createProductionOrder(
   params: CreateProductionOrderParams
 ): Promise<ProductionOrderListItemDTO> {
-  const input = normalizeCreateInput(params.input);
-
-  if (input.dispatchUnits.length === 0) {
-    throw new AppError({
-      status: 400,
-      code: 'VALIDATION_ERROR',
-      publicMessage: 'En az bir sevk birimi seçilmelidir.'
-    });
-  }
-
   return withTransaction(async (client) => {
-    let orderId: string | null = null;
-
-    try {
-      const insertOrderResult = await client.query<{ id: string }>(
-        `
-          INSERT INTO production_orders (
-            order_date,
-            order_no,
-            customer_name,
-            market_scope,
-            demand_source,
-            order_quantity,
-            deadline_date,
-            final_product_name,
-            packaging_type,
-            total_amount_text,
-            dispatch_unit_code,
-            created_by,
-            created_by_role
-          )
-          VALUES (
-            $1::date,
-            $2::varchar(64),
-            $3::varchar(120),
-            $4::varchar(16),
-            $5::varchar(32),
-            $6::varchar(64),
-            $7::date,
-            $8::varchar(120),
-            $9::varchar(16),
-            $10::varchar(120),
-            $11::varchar(16),
-            $12::uuid,
-            $13::role_type
-          )
-          RETURNING id
-        `,
-        [
-          input.orderDate,
-          input.orderNo,
-          input.customerName,
-          input.marketScope,
-          input.demandSource,
-          input.orderQuantity,
-          input.deadlineDate,
-          input.finalProductName,
-          input.packagingType,
-          input.totalAmountText,
-          input.dispatchUnits[0],
-          params.actorUserId,
-          params.actorRole
-        ]
-      );
-
-      orderId = insertOrderResult.rows[0]?.id ?? null;
-    } catch (error) {
-      const pgError = error as { code?: string };
-      if (pgError.code === '23505') {
-        throw new AppError({
-          status: 409,
-          code: 'PRODUCTION_ORDER_NO_EXISTS',
-          publicMessage: 'Bu iş emri numarası zaten kayıtlı.'
-        });
-      }
-
-      throw error;
+    await requireUnitWithGroup(client, params.input.plannedRawUnitCode, 'HAMMADDE');
+    if (params.input.plannedMachineUnitCode) {
+      await requireUnitWithGroup(client, params.input.plannedMachineUnitCode, 'MAKINE');
     }
+
+    const createdResult = await client.query<{ id: string }>(
+      `
+        INSERT INTO production_orders (
+          order_date,
+          order_no,
+          customer_name,
+          order_quantity,
+          deadline_date,
+          final_product_name,
+          total_packaging_quantity,
+          color,
+          mold_text,
+          has_prospectus,
+          market_scope,
+          demand_source,
+          packaging_type,
+          planned_raw_unit_code,
+          planned_machine_unit_code,
+          status,
+          created_by
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+          $11, $12, $13, $14, $15, 'active', $16
+        )
+        RETURNING id
+      `,
+      [
+        params.input.orderDate,
+        params.input.orderNo,
+        params.input.customerName,
+        params.input.orderQuantity,
+        params.input.deadlineDate,
+        params.input.finalProductName,
+        params.input.totalPackagingQuantity,
+        params.input.color,
+        params.input.moldText,
+        params.input.hasProspectus,
+        params.input.marketScope,
+        params.input.demandSource,
+        params.input.packagingType,
+        params.input.plannedRawUnitCode,
+        params.input.plannedMachineUnitCode,
+        params.actorUserId
+      ]
+    );
+
+    const orderId = createdResult.rows[0]?.id;
 
     if (!orderId) {
       throw new AppError({
         status: 500,
-        code: 'PRODUCTION_ORDER_CREATE_FAILED',
+        code: 'ORDER_CREATE_FAILED',
         publicMessage: 'Üretim emri oluşturulamadı.'
       });
     }
 
-    for (const material of input.materials) {
-      await client.query(
-        `
-          INSERT INTO production_order_materials (
-            production_order_id,
-            material_product_type,
-            material_name,
-            material_quantity_text
-          )
-          VALUES (
-            $1::uuid,
-            $2::varchar(32),
-            $3::varchar(120),
-            $4::varchar(120)
-          )
-        `,
-        [
-          orderId,
-          material.materialProductType,
-          material.materialName,
-          material.materialQuantityText
-        ]
-      );
-    }
-
-    for (const unitCode of input.dispatchUnits) {
-      await client.query(
-        `
-          INSERT INTO production_order_dispatches (
-            production_order_id,
-            unit_code,
-            status,
-            dispatched_by,
-            dispatched_at
-          )
-          VALUES ($1::uuid, $2::varchar(16), 'pending', $3::uuid, NOW())
-          ON CONFLICT (production_order_id, unit_code)
-          DO UPDATE
-            SET status = 'pending',
-                dispatched_by = EXCLUDED.dispatched_by,
-                dispatched_at = NOW(),
-                accepted_by = NULL,
-                accepted_at = NULL,
-                completed_by = NULL,
-                completed_at = NULL,
-                updated_at = NOW()
-        `,
-        [orderId, unitCode, params.actorUserId]
-      );
-    }
-
     await client.query(
       `
-        INSERT INTO audit_logs (
-          actor_user_id,
-          action_type,
-          entity_type,
-          entity_id,
-          payload_json,
-          request_id
+        INSERT INTO production_order_dispatches (
+          production_order_id,
+          unit_code,
+          status,
+          dispatched_by
         )
-        VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6::uuid)
+        VALUES ($1::uuid, $2, 'pending', $3::uuid)
       `,
-      [
-        params.actorUserId,
-        'PRODUCTION_ORDER_CREATED',
-        'production_order',
-        orderId,
-        JSON.stringify({
-          orderNo: input.orderNo,
-          dispatchUnits: input.dispatchUnits,
-          materialCount: input.materials.length
-        }),
-        params.requestId
-      ]
+      [orderId, params.input.plannedRawUnitCode, params.actorUserId]
     );
 
-    const created = await getOrderByIdWithClient(client, orderId);
-    if (!created) {
+    const createdOrder = await getOrderByIdWithClient(client, orderId);
+
+    if (!createdOrder) {
       throw new AppError({
         status: 500,
-        code: 'PRODUCTION_ORDER_CREATE_FAILED',
-        publicMessage: 'Üretim emri oluşturulamadı.'
+        code: 'ORDER_CREATE_FAILED',
+        publicMessage: 'Üretim emri oluşturuldu ancak okunamadı.'
       });
     }
 
-    return created;
-  });
-}
+    return createdOrder;
+  }).catch((error) => {
+    const pgError = error as { code?: string };
 
-export async function deleteProductionOrder(params: DeleteProductionOrderParams): Promise<void> {
-  await withTransaction(async (client) => {
-    const existingResult = await client.query<{
-      id: string;
-      order_no: string;
-      material_count: number;
-      dispatch_count: number;
-    }>(
-      `
-        SELECT
-          o.id,
-          o.order_no,
-          (
-            SELECT COUNT(*)::int
-            FROM production_order_materials m
-            WHERE m.production_order_id = o.id
-          ) AS material_count,
-          (
-            SELECT COUNT(*)::int
-            FROM production_order_dispatches d
-            WHERE d.production_order_id = o.id
-          ) AS dispatch_count
-        FROM production_orders o
-        WHERE o.id = $1::uuid
-        LIMIT 1
-      `,
-      [params.id]
-    );
-
-    const existing = existingResult.rows[0];
-
-    if (!existing) {
+    if (pgError.code === '23505') {
       throw new AppError({
-        status: 404,
-        code: 'PRODUCTION_ORDER_NOT_FOUND',
-        publicMessage: 'Üretim emri bulunamadı.'
+        status: 409,
+        code: 'ORDER_NO_EXISTS',
+        publicMessage: 'Bu iş emri numarası zaten kullanılıyor.'
       });
     }
 
-    await client.query(
-      `
-        DELETE FROM production_orders
-        WHERE id = $1::uuid
-      `,
-      [params.id]
-    );
-
-    await client.query(
-      `
-        INSERT INTO audit_logs (
-          actor_user_id,
-          action_type,
-          entity_type,
-          entity_id,
-          payload_json,
-          request_id
-        )
-        VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6::uuid)
-      `,
-      [
-        params.actorUserId,
-        'PRODUCTION_ORDER_DELETED',
-        'production_order',
-        params.id,
-        JSON.stringify({
-          orderNo: existing.order_no,
-          materialCount: existing.material_count,
-          dispatchCount: existing.dispatch_count
-        }),
-        params.requestId
-      ]
-    );
+    throw error;
   });
-}
-
-export async function listProductionOrders(
-  params: ListProductionOrdersParams
-): Promise<ProductionOrderListItemDTO[]> {
-  const whereClauses: string[] = ['1 = 1'];
-  const values: unknown[] = [];
-
-  if (params.scope === 'warehouse') {
-    whereClauses.push(
-      `EXISTS (
-        SELECT 1
-        FROM production_order_dispatches d
-        WHERE d.production_order_id = o.id
-          AND d.unit_code = 'DEPO'
-          AND d.status <> 'completed'
-      )`
-    );
-  }
-
-  if (params.scope === 'unit') {
-    if (!params.actorUnitCode) {
-      return [];
-    }
-
-    values.push(params.actorUnitCode);
-    whereClauses.push(
-      `EXISTS (
-        SELECT 1
-        FROM production_order_dispatches d
-        WHERE d.production_order_id = o.id
-          AND d.unit_code = $${values.length}::varchar(16)
-      )`
-    );
-  }
-
-  const safeLimit = Math.min(Math.max(params.limit ?? 120, 1), 300);
-  values.push(safeLimit);
-
-  const result = await queryDb<ProductionOrderRow>(
-    `
-      ${BASE_SELECT}
-      WHERE ${whereClauses.join(' AND ')}
-      ORDER BY o.created_at DESC
-      LIMIT $${values.length}::int
-    `,
-    values
-  );
-
-  return result.rows.map(mapOrderRow);
-}
-
-interface UpdateMaterialAvailabilityParams {
-  orderId: string;
-  materialId: string;
-  isAvailable: boolean;
-  actorUserId: string;
-  requestId: string;
-}
-
-export async function updateProductionOrderMaterialAvailability(
-  params: UpdateMaterialAvailabilityParams
-): Promise<void> {
-  const result = await queryDb<{ id: string }>(
-    `
-      UPDATE production_order_materials
-      SET
-        is_available = $3::boolean,
-        checked_by = CASE WHEN $3::boolean THEN $4::uuid ELSE NULL END,
-        checked_at = CASE WHEN $3::boolean THEN NOW() ELSE NULL END,
-        updated_at = NOW()
-      WHERE id = $1::uuid
-        AND production_order_id = $2::uuid
-      RETURNING id
-    `,
-    [params.materialId, params.orderId, params.isAvailable, params.actorUserId]
-  );
-
-  if (!result.rows[0]) {
-    throw new AppError({
-      status: 404,
-      code: 'PRODUCTION_ORDER_MATERIAL_NOT_FOUND',
-      publicMessage: 'Malzeme satırı bulunamadı.'
-    });
-  }
-
-  await queryDb(
-    `
-      INSERT INTO audit_logs (
-        actor_user_id,
-        action_type,
-        entity_type,
-        entity_id,
-        payload_json,
-        request_id
-      )
-      VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6::uuid)
-    `,
-    [
-      params.actorUserId,
-      'PRODUCTION_ORDER_MATERIAL_CHECKED',
-      'production_order',
-      params.orderId,
-      JSON.stringify({
-        materialId: params.materialId,
-        isAvailable: params.isAvailable
-      }),
-      params.requestId
-    ]
-  );
-}
-
-interface DispatchProductionOrderParams {
-  orderId: string;
-  unitCodes: ProductionUnit[];
-  actorUserId: string;
-  requestId: string;
 }
 
 export async function dispatchProductionOrder(
   params: DispatchProductionOrderParams
-): Promise<void> {
-  if (params.unitCodes.includes('DEPO')) {
-    throw new AppError({
-      status: 400,
-      code: 'INVALID_DISPATCH_UNIT',
-      publicMessage: 'DEPO birimi hedef sevk birimi olamaz.'
-    });
-  }
+): Promise<ProductionOrderListItemDTO> {
+  return withTransaction(async (client) => {
+    const order = await ensureOrderCanAdvance(client, params.id);
+    const unit = await getUnitWithClient(client, params.unitCode);
 
-  await withTransaction(async (client) => {
-    const orderResult = await client.query<{ id: string }>(
-      `
-        SELECT id
-        FROM production_orders
-        WHERE id = $1::uuid
-        LIMIT 1
-      `,
-      [params.orderId]
-    );
-
-    if (!orderResult.rows[0]) {
-      throw new AppError({
-        status: 404,
-        code: 'PRODUCTION_ORDER_NOT_FOUND',
-        publicMessage: 'Üretim emri bulunamadı.'
-      });
-    }
-
-    const materialSummary = await client.query<{
-      total_count: number;
-      available_count: number;
-    }>(
-      `
-        SELECT
-          COUNT(*)::int AS total_count,
-          COUNT(*) FILTER (WHERE is_available = TRUE)::int AS available_count
-        FROM production_order_materials
-        WHERE production_order_id = $1::uuid
-      `,
-      [params.orderId]
-    );
-
-    const totalCount = materialSummary.rows[0]?.total_count ?? 0;
-    const availableCount = materialSummary.rows[0]?.available_count ?? 0;
-
-    if (totalCount === 0 || availableCount !== totalCount) {
+    if (!unit || !unit.is_active) {
       throw new AppError({
         status: 400,
-        code: 'MATERIALS_NOT_READY',
-        publicMessage:
-          'Sevk için tüm malzemeler depo tarafından uygun olarak işaretlenmelidir.'
+        code: 'UNIT_NOT_FOUND',
+        publicMessage: 'Sevk edilecek birim bulunamadı.'
       });
     }
 
-    for (const unitCode of params.unitCodes) {
-      await client.query(
-        `
-          INSERT INTO production_order_dispatches (
-            production_order_id,
-            unit_code,
-            status,
-            dispatched_by,
-            dispatched_at
-          )
-          VALUES ($1::uuid, $2::varchar(16), 'pending', $3::uuid, NOW())
-          ON CONFLICT (production_order_id, unit_code)
-          DO UPDATE
-            SET status = 'pending',
-                dispatched_by = EXCLUDED.dispatched_by,
-                dispatched_at = NOW(),
-                accepted_by = NULL,
-                accepted_at = NULL,
-                completed_by = NULL,
-                completed_at = NULL,
-                updated_at = NOW()
-        `,
-        [params.orderId, unitCode, params.actorUserId]
-      );
+    if (order.dispatches.some((dispatch) => dispatch.unitCode === params.unitCode)) {
+      throw new AppError({
+        status: 409,
+        code: 'DISPATCH_ALREADY_EXISTS',
+        publicMessage: 'Bu üretim emri aynı birime tekrar gönderilemez.'
+      });
     }
 
     await client.query(
       `
-        INSERT INTO audit_logs (
-          actor_user_id,
-          action_type,
-          entity_type,
-          entity_id,
-          payload_json,
-          request_id
+        INSERT INTO production_order_dispatches (
+          production_order_id,
+          unit_code,
+          status,
+          dispatched_by
         )
-        VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6::uuid)
+        VALUES ($1::uuid, $2, 'pending', $3::uuid)
       `,
-      [
-        params.actorUserId,
-        'PRODUCTION_ORDER_DISPATCHED',
-        'production_order',
-        params.orderId,
-        JSON.stringify({
-          unitCodes: params.unitCodes
-        }),
-        params.requestId
-      ]
+      [params.id, params.unitCode, params.actorUserId]
     );
+
+    const updatedOrder = await getOrderByIdWithClient(client, params.id);
+
+    if (!updatedOrder) {
+      throw new AppError({
+        status: 404,
+        code: 'ORDER_NOT_FOUND',
+        publicMessage: 'Üretim emri bulunamadı.'
+      });
+    }
+
+    return updatedOrder;
   });
 }
 
-interface UpdateDispatchStatusParams {
-  dispatchId: string;
-  actorUserId: string;
-  actorRole: Role;
-  actorUnitCode: ProductionUnit | null;
-  requestId: string;
-}
+export async function finishProductionOrder(
+  params: FinishProductionOrderParams
+): Promise<ProductionOrderListItemDTO> {
+  return withTransaction(async (client) => {
+    const order = await ensureOrderCanAdvance(client, params.id);
 
-async function ensureDispatchPermission(
-  dispatchId: string,
-  actorRole: Role,
-  actorUnitCode: ProductionUnit | null
-): Promise<{ unitCode: ProductionUnit; productionOrderId: string; status: ProductionDispatchStatus }> {
-  const dispatchResult = await queryDb<{
-    id: string;
-    production_order_id: string;
-    unit_code: ProductionUnit;
-    status: ProductionDispatchStatus;
-  }>(
-    `
-      SELECT id, production_order_id, unit_code, status
-      FROM production_order_dispatches
-      WHERE id = $1::uuid
-      LIMIT 1
-    `,
-    [dispatchId]
-  );
+    await client.query(
+      `
+        UPDATE production_orders
+        SET status = 'completed',
+            updated_at = NOW()
+        WHERE id = $1::uuid
+      `,
+      [order.id]
+    );
 
-  const dispatch = dispatchResult.rows[0];
-  if (!dispatch) {
-    throw new AppError({
-      status: 404,
-      code: 'PRODUCTION_ORDER_DISPATCH_NOT_FOUND',
-      publicMessage: 'Üretim görevi bulunamadı.'
-    });
-  }
+    const updatedOrder = await getOrderByIdWithClient(client, params.id);
 
-  if (actorRole !== 'admin') {
-    const allowedUnitCode =
-      actorRole === 'tablet1' ? getUnitCodeByRole(actorRole) : actorUnitCode;
-
-    if (!allowedUnitCode || allowedUnitCode !== dispatch.unit_code) {
+    if (!updatedOrder) {
       throw new AppError({
-        status: 403,
-        code: 'FORBIDDEN',
-        publicMessage: 'Bu görevi güncelleme yetkiniz bulunmuyor.'
+        status: 404,
+        code: 'ORDER_NOT_FOUND',
+        publicMessage: 'Üretim emri bulunamadı.'
       });
     }
-  }
 
-  return {
-    unitCode: dispatch.unit_code,
-    productionOrderId: dispatch.production_order_id,
-    status: dispatch.status
-  };
+    return updatedOrder;
+  });
 }
 
 export async function acceptProductionOrderDispatch(
-  params: UpdateDispatchStatusParams
-): Promise<void> {
-  const dispatch = await ensureDispatchPermission(
-    params.dispatchId,
-    params.actorRole,
-    params.actorUnitCode
-  );
+  params: AcceptDispatchParams
+): Promise<ProductionOrderListItemDTO> {
+  return withTransaction(async (client) => {
+    const dispatchResult = await client.query<{
+      id: string;
+      production_order_id: string;
+      unit_code: string;
+      status: 'pending' | 'in_progress' | 'completed';
+    }>(
+      `
+        SELECT id, production_order_id, unit_code, status
+        FROM production_order_dispatches
+        WHERE id = $1::uuid
+        LIMIT 1
+      `,
+      [params.dispatchId]
+    );
 
-  if (dispatch.status === 'completed') {
-    throw new AppError({
-      status: 409,
-      code: 'DISPATCH_ALREADY_COMPLETED',
-      publicMessage: 'Görev zaten tamamlandı.'
-    });
-  }
+    const dispatch = dispatchResult.rows[0];
 
-  if (dispatch.status === 'in_progress') {
-    return;
-  }
+    if (!dispatch) {
+      throw new AppError({
+        status: 404,
+        code: 'DISPATCH_NOT_FOUND',
+        publicMessage: 'Sevk kaydı bulunamadı.'
+      });
+    }
 
-  await queryDb(
-    `
-      UPDATE production_order_dispatches
-      SET
-        status = 'in_progress',
-        accepted_by = $2::uuid,
-        accepted_at = COALESCE(accepted_at, NOW()),
-        updated_at = NOW()
-      WHERE id = $1::uuid
-    `,
-    [params.dispatchId, params.actorUserId]
-  );
+    if (!params.actorUnitCode || params.actorUnitCode !== dispatch.unit_code) {
+      throw new AppError({
+        status: 403,
+        code: 'DISPATCH_UNIT_MISMATCH',
+        publicMessage: 'Bu sevk kaydını yalnız ilgili birim kabul edebilir.'
+      });
+    }
 
-  await queryDb(
-    `
-      INSERT INTO audit_logs (
-        actor_user_id,
-        action_type,
-        entity_type,
-        entity_id,
-        payload_json,
-        request_id
-      )
-      VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6::uuid)
-    `,
-    [
-      params.actorUserId,
-      'PRODUCTION_ORDER_TASK_ACCEPTED',
-      'production_order',
-      dispatch.productionOrderId,
-      JSON.stringify({
-        dispatchId: params.dispatchId,
-        unitCode: dispatch.unitCode
-      }),
-      params.requestId
-    ]
-  );
+    if (dispatch.status !== 'pending') {
+      throw new AppError({
+        status: 409,
+        code: 'DISPATCH_NOT_PENDING',
+        publicMessage: 'Bu görev bekleyen durumda değil.'
+      });
+    }
+
+    await client.query(
+      `
+        UPDATE production_order_dispatches
+        SET status = 'in_progress',
+            accepted_by = $2::uuid,
+            accepted_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $1::uuid
+      `,
+      [dispatch.id, params.actorUserId]
+    );
+
+    const updatedOrder = await getOrderByIdWithClient(client, dispatch.production_order_id);
+
+    if (!updatedOrder) {
+      throw new AppError({
+        status: 404,
+        code: 'ORDER_NOT_FOUND',
+        publicMessage: 'Üretim emri bulunamadı.'
+      });
+    }
+
+    return updatedOrder;
+  });
 }
 
 export async function completeProductionOrderDispatch(
-  params: UpdateDispatchStatusParams
-): Promise<void> {
-  const dispatch = await ensureDispatchPermission(
-    params.dispatchId,
-    params.actorRole,
-    params.actorUnitCode
-  );
+  params: CompleteDispatchParams
+): Promise<ProductionOrderListItemDTO> {
+  return withTransaction(async (client) => {
+    const dispatchResult = await client.query<{
+      id: string;
+      production_order_id: string;
+      unit_code: string;
+      status: 'pending' | 'in_progress' | 'completed';
+    }>(
+      `
+        SELECT id, production_order_id, unit_code, status
+        FROM production_order_dispatches
+        WHERE id = $1::uuid
+        LIMIT 1
+      `,
+      [params.dispatchId]
+    );
 
-  if (dispatch.status === 'completed') {
-    return;
+    const dispatch = dispatchResult.rows[0];
+
+    if (!dispatch) {
+      throw new AppError({
+        status: 404,
+        code: 'DISPATCH_NOT_FOUND',
+        publicMessage: 'Sevk kaydı bulunamadı.'
+      });
+    }
+
+    if (!params.actorUnitCode || params.actorUnitCode !== dispatch.unit_code) {
+      throw new AppError({
+        status: 403,
+        code: 'DISPATCH_UNIT_MISMATCH',
+        publicMessage: 'Bu sevk kaydını yalnız ilgili birim tamamlayabilir.'
+      });
+    }
+
+    if (dispatch.status !== 'in_progress') {
+      throw new AppError({
+        status: 409,
+        code: 'DISPATCH_NOT_IN_PROGRESS',
+        publicMessage: 'Bu görev çalışıyor durumda değil.'
+      });
+    }
+
+    await client.query(
+      `
+        UPDATE production_order_dispatches
+        SET status = 'completed',
+            completed_by = $2::uuid,
+            completed_at = NOW(),
+            reported_output_quantity = $3,
+            updated_at = NOW()
+        WHERE id = $1::uuid
+      `,
+      [dispatch.id, params.actorUserId, params.reportedOutputQuantity]
+    );
+
+    const updatedOrder = await getOrderByIdWithClient(client, dispatch.production_order_id);
+
+    if (!updatedOrder) {
+      throw new AppError({
+        status: 404,
+        code: 'ORDER_NOT_FOUND',
+        publicMessage: 'Üretim emri bulunamadı.'
+      });
+    }
+
+    return updatedOrder;
+  });
+}
+
+export async function addProductionOrderAttachment(
+  params: AttachmentParams
+): Promise<ProductionOrderAttachmentDTO> {
+  if (params.file.size <= 0) {
+    throw new AppError({
+      status: 400,
+      code: 'EMPTY_ATTACHMENT',
+      publicMessage: 'Boş dosya yüklenemez.'
+    });
   }
 
-  await queryDb(
+  const extensionSafeName = normalizeFilename(params.file.name || 'ek-dosya');
+  const storagePath = `${params.orderId}/${randomUUID()}-${extensionSafeName || 'dosya'}`;
+
+  await uploadStorageObject({
+    path: storagePath,
+    file: params.file
+  });
+
+  try {
+    const result = await queryDb<ProductionOrderAttachmentRow>(
+      `
+        INSERT INTO production_order_attachments (
+          production_order_id,
+          storage_path,
+          original_filename,
+          mime_type,
+          size_bytes,
+          uploaded_by
+        )
+        VALUES ($1::uuid, $2, $3, $4, $5, $6::uuid)
+        RETURNING
+          id,
+          production_order_id,
+          original_filename,
+          mime_type,
+          size_bytes,
+          created_at,
+          NULL::text AS uploaded_by_username,
+          storage_path
+      `,
+      [
+        params.orderId,
+        storagePath,
+        params.file.name || 'ek-dosya',
+        params.file.type || 'application/octet-stream',
+        params.file.size,
+        params.actorUserId
+      ]
+    );
+
+    return mapAttachment(result.rows[0]);
+  } catch (error) {
+    await deleteStorageObject(storagePath).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function getProductionOrderAttachmentDownload(params: {
+  orderId: string;
+  attachmentId: string;
+}): Promise<{
+  filename: string;
+  mimeType: string;
+  response: Response;
+}> {
+  const result = await queryDb<AttachmentDownloadRecord>(
     `
-      UPDATE production_order_dispatches
-      SET
-        status = 'completed',
-        accepted_by = COALESCE(accepted_by, $2::uuid),
-        accepted_at = COALESCE(accepted_at, NOW()),
-        completed_by = $2::uuid,
-        completed_at = NOW(),
-        updated_at = NOW()
+      SELECT id, original_filename, mime_type, storage_path
+      FROM production_order_attachments
       WHERE id = $1::uuid
+        AND production_order_id = $2::uuid
+      LIMIT 1
     `,
-    [params.dispatchId, params.actorUserId]
+    [params.attachmentId, params.orderId]
   );
 
-  await queryDb(
-    `
-      INSERT INTO audit_logs (
-        actor_user_id,
-        action_type,
-        entity_type,
-        entity_id,
-        payload_json,
-        request_id
-      )
-      VALUES ($1::uuid, $2, $3, $4::uuid, $5::jsonb, $6::uuid)
-    `,
-    [
-      params.actorUserId,
-      'PRODUCTION_ORDER_TASK_COMPLETED',
-      'production_order',
-      dispatch.productionOrderId,
-      JSON.stringify({
-        dispatchId: params.dispatchId,
-        unitCode: dispatch.unitCode
-      }),
-      params.requestId
-    ]
-  );
+  const attachment = result.rows[0];
+
+  if (!attachment) {
+    throw new AppError({
+      status: 404,
+      code: 'ATTACHMENT_NOT_FOUND',
+      publicMessage: 'Ek dosya bulunamadı.'
+    });
+  }
+
+  return {
+    filename: attachment.original_filename,
+    mimeType: attachment.mime_type,
+    response: await downloadStorageObject(attachment.storage_path)
+  };
+}
+
+export function getSuggestedNextMachineUnit(
+  order: ProductionOrderListItemDTO
+): ProductionUnit | null {
+  const alreadyUsedUnits = new Set(order.dispatches.map((dispatch) => dispatch.unitCode));
+
+  if (!order.plannedMachineUnitCode) {
+    return null;
+  }
+
+  if (!alreadyUsedUnits.has(order.plannedMachineUnitCode)) {
+    return order.plannedMachineUnitCode;
+  }
+
+  return null;
+}
+
+export function getCurrentDispatch(
+  order: ProductionOrderListItemDTO
+): ProductionOrderDispatchDTO | null {
+  const openDispatch =
+    order.dispatches.find((dispatch) => dispatch.status === 'in_progress') ??
+    order.dispatches.find((dispatch) => dispatch.status === 'pending');
+
+  if (openDispatch) {
+    return openDispatch;
+  }
+
+  return order.dispatches[order.dispatches.length - 1] ?? null;
+}
+
+export function getDispatchStatusLabel(status: ProductionOrderDispatchDTO['status']): string {
+  switch (status) {
+    case 'pending':
+      return 'Bekliyor';
+    case 'in_progress':
+      return 'Çalışıyor';
+    case 'completed':
+      return 'Tamamlandı';
+    default:
+      return status;
+  }
+}
+
+export function getOrderStateLabel(order: ProductionOrderListItemDTO): string {
+  if (order.status === 'completed') {
+    return 'Bitti';
+  }
+
+  const currentDispatch = getCurrentDispatch(order);
+
+  if (!currentDispatch) {
+    return 'Hazır';
+  }
+
+  return `${getProductionUnitLabel(currentDispatch.unitCode, currentDispatch.unitName)} / ${getDispatchStatusLabel(currentDispatch.status)}`;
 }

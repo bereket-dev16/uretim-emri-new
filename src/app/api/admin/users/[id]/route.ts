@@ -17,7 +17,7 @@ interface RouteContext {
 export async function PATCH(request: NextRequest, context: RouteContext): Promise<NextResponse> {
   return withApiHandler(request, async ({ requestId }) => {
     const params = await context.params;
-    const session = await requireApiSession(request, requestId, PERMISSIONS.ADMIN_USERS_UPDATE);
+    await requireApiSession(request, requestId, PERMISSIONS.ADMIN_USERS_UPDATE);
 
     const body = await request.json();
     const parsed = userPatchSchema.safeParse(body);
@@ -33,9 +33,7 @@ export async function PATCH(request: NextRequest, context: RouteContext): Promis
 
     const user = await updateUser({
       id: params.id,
-      ...parsed.data,
-      actorUserId: session.userId,
-      requestId
+      ...parsed.data
     });
 
     return NextResponse.json({ user });
@@ -49,8 +47,7 @@ export async function DELETE(request: NextRequest, context: RouteContext): Promi
 
     await deleteUser({
       id: params.id,
-      actorUserId: session.userId,
-      requestId
+      actorUserId: session.userId
     });
 
     return NextResponse.json({ success: true });

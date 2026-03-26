@@ -16,13 +16,8 @@ interface RouteContext {
 
 export async function POST(request: NextRequest, context: RouteContext): Promise<NextResponse> {
   return withApiHandler(request, async ({ requestId }) => {
+    const session = await requireApiSession(request, requestId, PERMISSIONS.PRODUCTION_ORDERS_MANAGE);
     const params = await context.params;
-    const session = await requireApiSession(
-      request,
-      requestId,
-      PERMISSIONS.PRODUCTION_ORDERS_WAREHOUSE
-    );
-
     const body = await request.json();
     const parsed = productionOrderDispatchCreateSchema.safeParse(body);
 
@@ -30,18 +25,17 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       throw new AppError({
         status: 400,
         code: 'VALIDATION_ERROR',
-        publicMessage: 'Sevk verileri geçersiz.',
+        publicMessage: 'Sevk bilgisi doğrulanamadı.',
         details: parsed.error.flatten()
       });
     }
 
-    await dispatchProductionOrder({
-      orderId: params.id,
-      unitCodes: parsed.data.unitCodes,
-      actorUserId: session.userId,
-      requestId
+    const item = await dispatchProductionOrder({
+      id: params.id,
+      unitCode: parsed.data.unitCode,
+      actorUserId: session.userId
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ item });
   });
 }

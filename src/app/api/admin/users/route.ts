@@ -19,7 +19,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   return withApiHandler(request, async ({ requestId }) => {
-    const session = await requireApiSession(request, requestId, PERMISSIONS.ADMIN_USERS_CREATE);
+    await requireApiSession(request, requestId, PERMISSIONS.ADMIN_USERS_CREATE);
 
     const body = await request.json();
     const parsed = userCreateSchema.safeParse(body);
@@ -33,11 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    const user = await createUser({
-      ...parsed.data,
-      actorUserId: session.userId,
-      requestId
-    });
+    const user = await createUser(parsed.data);
 
     return NextResponse.json({ user }, { status: 201 });
   });

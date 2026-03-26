@@ -1,20 +1,14 @@
 import { z } from 'zod';
 
-export const roleSchema = z.enum(['admin', 'production_manager', 'warehouse_manager', 'hat', 'tablet1']);
+export const roleSchema = z.enum(['admin', 'production_manager', 'hat']);
 
-export const userCreateSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, 'Kullanıcı adı en az 3 karakter olmalı.')
-    .max(64, 'Kullanıcı adı en fazla 64 karakter olabilir.'),
-  password: z
-    .string()
-    .min(4, 'Şifre en az 4 karakter olmalı.')
-    .max(128, 'Şifre en fazla 128 karakter olabilir.'),
-  role: roleSchema,
-  hatUnitCode: z.string().trim().max(32).nullable().optional()
-}).superRefine((value, ctx) => {
+function hatUnitRequirement(
+  value: {
+    role?: z.infer<typeof roleSchema>;
+    hatUnitCode?: string | null;
+  },
+  ctx: z.RefinementCtx
+) {
   if (value.role === 'hat' && !value.hatUnitCode?.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -22,7 +16,23 @@ export const userCreateSchema = z.object({
       message: 'Hat rolü için birim seçimi zorunludur.'
     });
   }
-});
+}
+
+export const userCreateSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3, 'Kullanıcı adı en az 3 karakter olmalı.')
+      .max(64, 'Kullanıcı adı en fazla 64 karakter olabilir.'),
+    password: z
+      .string()
+      .min(4, 'Şifre en az 4 karakter olmalı.')
+      .max(128, 'Şifre en fazla 128 karakter olabilir.'),
+    role: roleSchema,
+    hatUnitCode: z.string().trim().max(32).nullable().optional()
+  })
+  .superRefine(hatUnitRequirement);
 
 export const userPatchSchema = z
   .object({
@@ -40,13 +50,7 @@ export const userPatchSchema = z
       return;
     }
 
-    if (value.role === 'hat' && !value.hatUnitCode?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['hatUnitCode'],
-        message: 'Hat rolü için birim seçimi zorunludur.'
-      });
-    }
+    hatUnitRequirement(value, ctx);
   });
 
 export const resetPasswordSchema = z.object({

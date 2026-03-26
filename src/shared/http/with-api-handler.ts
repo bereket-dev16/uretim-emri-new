@@ -10,7 +10,7 @@ export interface ApiHandlerContext {
   requestId: string;
 }
 
-const NOISY_POLLING_PATHS = new Set(['/api/audit/stream', '/api/stocks/recent']);
+const NOISY_POLLING_PATHS = new Set(['/api/production-orders']);
 
 function isUuid(value: string | null): value is string {
   if (!value) {

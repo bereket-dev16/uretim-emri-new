@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { getSessionByToken } from '@/modules/auth/service';
 import { ensurePermission } from '@/modules/rbac/service';
 import { AppError } from '@/shared/errors/app-error';
+import { logWarn } from '@/shared/logging/logger';
 import { getDefaultHomePathForRole } from '@/shared/security/role-home';
 import { SESSION_COOKIE_NAME } from '@/shared/security/session';
 
@@ -29,8 +30,17 @@ export async function requireApiSession(
   permission?: string
 ) {
   const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const cookieNames = request.cookies.getAll().map((cookie) => cookie.name);
 
   if (!sessionToken) {
+    logWarn('API session cookie missing', requestId, {
+      path: request.nextUrl.pathname,
+      host: request.headers.get('host'),
+      origin: request.headers.get('origin'),
+      referer: request.headers.get('referer'),
+      cookieNames
+    });
+
     throw new AppError({
       status: 401,
       code: 'UNAUTHORIZED',
@@ -41,6 +51,14 @@ export async function requireApiSession(
   const session = await getSessionByToken(sessionToken, { requestId, touch: true });
 
   if (!session) {
+    logWarn('API session lookup failed', requestId, {
+      path: request.nextUrl.pathname,
+      host: request.headers.get('host'),
+      origin: request.headers.get('origin'),
+      referer: request.headers.get('referer'),
+      cookieNames
+    });
+
     throw new AppError({
       status: 401,
       code: 'UNAUTHORIZED',

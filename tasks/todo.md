@@ -681,3 +681,22 @@
 - Login ekraninin dis kabugu ve form karti ayni estetik hatta cekildi; yumusak SaaS gorunumu yerine daha afisvari, kalin ve karakterli bir giris sayfasi olustu.
 - `AuditLiveFeed` paneli de ayni sert kontur/golge sistemiyle uyumlu hale getirildi; onceki hafif/transparan tasarim dili kaldirildi.
 - Dogrulama: `corepack pnpm typecheck`, `corepack pnpm build` basarili.
+
+## Iteration: Production Orders Reset
+### Plan
+- [x] Yeni temiz-baslangic migration'i ile stok, audit ve eski depo akislarini kaldirip role/schema yapisini `admin | production_manager | hat` modeline tasimak
+- [x] RBAC, domain tipleri, validation ve auth/user servislerini yeni rol/izin modeline guncellemek
+- [x] Uretim emri servis ve API katmanini sira-temelli create/dispatch/accept/complete/finish + attachment akisina gore yeniden yazmak
+- [x] Dashboard, login, header ve tum production-order ekranlarini minimal PLC-uyumlu tasarimla yeniden kurmak; eski route'lari silmek
+- [x] Stok/audit/demo dosyalarini, artik kullanilmayan script/testleri temizlemek ve README/ai-context/lessons kayitlarini guncellemek
+- [x] Typecheck + test + build ile davranisi dogrulamak
+
+### Review
+- `012_production_orders_reset.sql` ile eski stok/audit/depo omurgasi sokuldu; roller `admin | production_manager | hat` modeline indirildi, admin disi kullanicilar temizlendi, yeni `production_units`, `production_orders`, `production_order_dispatches` ve `production_order_attachments` tablolari kuruldu.
+- Domain tipleri, validation ve RBAC izinleri yeni akisla hizalandi; dashboard metrikleri emir bazli oldu, `hat` kullanicisinin varsayilan iniş sayfasi `/production-orders/incoming` olarak netlestirildi.
+- Uretim emri servis ve API katmani create -> raw-unit pending dispatch -> accept -> complete -> manager dispatch/finish sirasina gore yeniden kuruldu; attachment upload/download Supabase Storage yardimcilariyla eklendi.
+- Uygulama shell'i, login, dashboard, header ve production-order ekranlari sade, PLC-uyumlu, hover'a bagli olmayan tasarima cekildi; manager icin `active/completed`, hat icin `incoming/tasks` ekranlari ayristirildi.
+- Eski `stocks`, `audit`, `demo-print`, `warehouse`, `monitor` route ve bilesenleri fiziksel olarak kaldirildi; obsolete seed/benchmark scriptleri ve stok/audit testleri temizlendi; README, `ai-context.md` ve `.env.example` yeni modele gore guncellendi.
+- Dogrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.
+- Local production `pnpm start` akisinda `.env` shell'e otomatik yuklenmedigi icin standalone server session cookie'yi `secure=true` varsayimi ile baslatabiliyordu; `scripts/start-standalone.mjs` icine `@next/env` ile env load eklendi ve child process `NODE_ENV=production` ile netlestirildi.
+- Kullanici geri bildirimiyle create formundaki `Makine Birimi` alanı opsiyonel hale getirildi; UI default'u bos secime alindi, payload'da bos deger `null` gonderilecek sekilde guncellendi ve `013_make_machine_unit_optional.sql` ile DB kolonundaki `NOT NULL` kaldirildi.

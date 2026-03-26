@@ -1,10 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { completeProductionOrderDispatch, getUnitCodeByRole } from '@/modules/production-orders/service';
+import { completeProductionOrderDispatch } from '@/modules/production-orders/service';
 import { PERMISSIONS } from '@/modules/rbac/constants';
+import { AppError } from '@/shared/errors/app-error';
 import { withApiHandler } from '@/shared/http/with-api-handler';
 import { requireApiSession } from '@/shared/security/auth-guards';
+import { productionOrderCompleteSchema } from '@/shared/validation/production-order';
 
 interface RouteContext {
   params: Promise<{
@@ -14,21 +16,27 @@ interface RouteContext {
 
 export async function POST(request: NextRequest, context: RouteContext): Promise<NextResponse> {
   return withApiHandler(request, async ({ requestId }) => {
+    const session = await requireApiSession(request, requestId, PERMISSIONS.PRODUCTION_ORDERS_UNIT_TASK);
     const params = await context.params;
-    const session = await requireApiSession(
-      request,
-      requestId,
-      PERMISSIONS.PRODUCTION_ORDERS_UNIT_TASK
-    );
+    const body = await request.json();
+    const parsed = productionOrderCompleteSchema.safeParse(body);
 
-    await completeProductionOrderDispatch({
+    if (!parsed.success) {
+      throw new AppError({
+        status: 400,
+        code: 'VALIDATION_ERROR',
+        publicMessage: 'Son sipariş miktarı doğrulanamadı.',
+        details: parsed.error.flatten()
+      });
+    }
+
+    const item = await completeProductionOrderDispatch({
       dispatchId: params.dispatchId,
       actorUserId: session.userId,
-      actorRole: session.role,
-      actorUnitCode: session.hatUnitCode ?? getUnitCodeByRole(session.role),
-      requestId
+      actorUnitCode: session.hatUnitCode,
+      reportedOutputQuantity: parsed.data.reportedOutputQuantity
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ item });
   });
 }

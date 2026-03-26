@@ -1,85 +1,79 @@
-# Depo/Stok v1
+# Üretim Emri Sistemi
 
-LAN ortamı için tasarlanmış, Next.js fullstack mimaride çalışan depo/stok uygulaması.
+LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fullstack uygulaması.
 
-## Özellikler
-- Username/password tabanlı custom auth + HTTPOnly session cookie
-- RBAC: admin, production_manager, warehouse_manager
-- Dashboard özet metrikleri
-- Barkod üretimli stok kayıt (server-side sequence)
-- Stok listeleme (server pagination + arama + filtre)
-- Admin paneli kullanıcı yönetimi (CRUD + rol + aktif/pasif + şifre reset)
-- Audit log + standard API error envelope + requestId
+## Kapsam
+- Custom auth + HttpOnly session cookie
+- RBAC: `admin`, `production_manager`, `hat`
+- Üretim emri oluşturma
+- Aktif emir yönetimi
+- Hat kullanıcıları için gelen emir / devam eden emir ekranları
+- Admin kullanıcı yönetimi
+- Supabase Storage üzerinden ek dosya yükleme
 
 ## Kurulum
-1. `.env.example` dosyasını `.env` olarak kopyala ve değerleri doldur.
-2. Bağımlılıkları kur (`pnpm` önerilir):
+1. `.env.example` dosyasını `.env` olarak kopyalayın.
+2. Gerekli değişkenleri doldurun.
+3. Bağımlılıkları kurun:
    - `pnpm install`
-3. Migration çalıştır:
+4. Migration çalıştırın:
    - `DATABASE_URL=... ./scripts/run-migrations.sh`
-4. İlk admin hesabı için hash üret:
-   - `node scripts/hash-password.mjs <şifre>`
-5. `db/bootstrap/01_first_admin_template.sql` içindeki placeholder değerleri doldurup çalıştır.
-6. Uygulamayı başlat:
+5. İlk admin hesabı için hash üretin:
+   - `node scripts/hash-password.mjs <sifre>`
+6. `db/bootstrap/01_first_admin_template.sql` içindeki placeholder alanları doldurup çalıştırın.
+7. Uygulamayı başlatın:
    - `pnpm dev`
 
-## Windows Deploy
-- Windows laptop "sahte sunucu" olarak kullanılabilir.
-- Repo private tutulmalı ve GitHub Actions self-hosted runner ile deploy yapılmalıdır.
-- Runner workspace içinde oluşan repo klasöründe `.env` bir kez oluşturulmalı.
-- Workflow `actions/checkout` adımında `clean: false` kullandığı için bu `.env` korunur.
-- Beklenen runner workspace örneği:
-  - `C:\actions-runner\_work\uretim-emri-new\uretim-emri-new`
-- Runner Windows üzerinde online olduktan sonra `main` branch push'ları şu akışı çalıştırır:
-  - `actions/checkout`
-  - `docker compose up -d --build`
-  - kısa log/ps kontrolü
-- Deploy scripti:
-  - `scripts/deploy-windows.ps1`
-- Workflow dosyası:
-  - `.github/workflows/deploy-windows.yml`
+## Roller
+- `admin`: tüm ekranlar ve admin paneli
+- `production_manager`: dashboard, create, aktif emirler, biten emirler
+- `hat`: gelen emirler, devam eden emirler
 
-## API uçları
+## Ana Route'lar
+- `/dashboard`
+- `/production-orders/create`
+- `/production-orders`
+- `/production-orders/completed`
+- `/production-orders/incoming`
+- `/production-orders/tasks`
+- `/admin/users`
+
+## API
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `GET /api/auth/session`
 - `GET /api/dashboard/summary`
-- `GET /api/stocks`
-- `POST /api/stocks`
+- `GET /api/production-orders`
+- `POST /api/production-orders`
+- `GET /api/production-orders/:id`
+- `POST /api/production-orders/:id/dispatch`
+- `POST /api/production-orders/:id/finish`
+- `POST /api/production-orders/dispatches/:dispatchId/accept`
+- `POST /api/production-orders/dispatches/:dispatchId/complete`
+- `POST /api/production-orders/:id/attachments`
+- `GET /api/production-orders/:id/attachments/:attachmentId`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/:id`
 - `POST /api/admin/users/:id/reset-password`
 - `DELETE /api/admin/users/:id`
 
-## Skill/Rules
-- `.agents/skills/depo-stok-workflow`
-- `.agents/skills/depo-stok-domain`
-- Proje tetikleyici kuralları: `AGENTS.md`
+## Windows Docker Deploy
+- Windows makinede repo klasörüne girin.
+- Güncelleme sonrası:
+  - `git pull`
+  - `docker compose build --progress=plain`
+  - `docker compose up -d`
+- Kontrol:
+  - `docker compose ps`
+  - `docker compose logs web --tail 50`
 
-## Test
+## Doğrulama
+- `pnpm typecheck`
 - `pnpm test`
-- Benchmark kullanicilarini hazirla:
-  - `pnpm prepare:bench-users`
-- Kuyruklu oturum benchmark:
-  - `pnpm bench:sessions -- --usersFile scripts/benchmark-user-sessions.sample.json --dry-run`
+- `pnpm build`
 
-## Quality
-- Frontend/Next odaklı analiz:
-  - `pnpm codehealth`
-  - `pnpm codehealth:ai`
-- Backend kalite kapıları:
-  - `pnpm quality:backend` (API guard, migration güvenliği, SQL hijyen kontrolleri)
-  - `pnpm quality:backend:strict` (typecheck + backend quality)
-  - `pnpm lint:backend` (ESLint ile server dizinlerini lint eder)
-
-## Performance Tuning (Polling)
-- `NEXT_PUBLIC_CLIENT_POLL_INTERVAL_MS`: client polling temel aralığı (ms). Varsayılan `15000`.
-- `API_READ_CACHE_TTL_MS`: `/api/audit/stream` ve `/api/stocks/recent` için server memory cache TTL (ms). Varsayılan `2000`.
-- `LOG_NOISY_POLLING_ENDPOINTS`: `true` ise yüksek frekanslı polling endpoint info logları tekrar görünür.
-
-## Load Test
-- `scripts/benchmark-user-sessions.mjs` gercek kullanima yakin, kuyruklu oturum benchmark'i icindir.
-- Her sanal kullanici kendi icinde tek seferde bir istek yollar; global yuk staggered/ramp-up ile yayilir.
-- Ornek:
-  - `pnpm bench:sessions -- --usersFile scripts/benchmark-user-sessions.sample.json --sessions 40 --durationSec 300`
+## Proje Kuralları
+- Workflow ve teslim disiplini için: `.agents/skills/depo-stok-workflow`
+- Domain kararları için: `.agents/skills/depo-stok-domain`
+- UI yönü için: `.agents/skills/frontend-design`

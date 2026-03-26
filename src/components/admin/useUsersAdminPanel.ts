@@ -15,7 +15,7 @@ export interface CreateUserForm {
 const INITIAL_CREATE_FORM: CreateUserForm = {
   username: '',
   password: '',
-  role: 'warehouse_manager',
+  role: 'production_manager',
   hatUnitCode: null
 };
 
@@ -114,7 +114,7 @@ export function useUsersAdminPanel(initialUsers: UserDTO[]) {
   });
 
   async function refreshUsers() {
-    const response = await fetch('/api/admin/users');
+    const response = await fetch('/api/admin/users', { credentials: 'same-origin' });
     const payload = await response.json();
 
     if (!response.ok) {
@@ -147,6 +147,7 @@ export function useUsersAdminPanel(initialUsers: UserDTO[]) {
 
       const response = await fetch('/api/admin/users', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -178,6 +179,7 @@ export function useUsersAdminPanel(initialUsers: UserDTO[]) {
     try {
       const response = await fetch(`/api/admin/users/${user.id}`, {
         method: 'PATCH',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -222,6 +224,7 @@ export function useUsersAdminPanel(initialUsers: UserDTO[]) {
     try {
       const response = await fetch(`/api/admin/users/${userId}/reset-password`, {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -261,7 +264,8 @@ export function useUsersAdminPanel(initialUsers: UserDTO[]) {
 
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'same-origin'
       });
 
       const payload = await response.json();

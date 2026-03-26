@@ -1,104 +1,57 @@
 import { z } from 'zod';
 
 import {
+  ALL_PRODUCTION_UNIT_VALUES,
   DEMAND_SOURCE_VALUES,
+  MACHINE_UNIT_VALUES,
   MARKET_SCOPE_VALUES,
-  PACKAGING_TYPE_VALUES
+  PACKAGING_TYPE_VALUES,
+  RAW_UNIT_VALUES
 } from '@/modules/production-orders/constants';
-import { PRODUCT_TYPE_VALUES } from '@/modules/stocks/constants';
 
 const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Tarih YYYY-MM-DD formatında olmalıdır.');
 
-export const productionOrderMaterialSchema = z.object({
-  materialProductType: z.enum(PRODUCT_TYPE_VALUES),
-  materialName: z
-    .string()
-    .trim()
-    .min(1, 'Malzeme adı zorunludur.')
-    .max(120, 'Malzeme adı en fazla 120 karakter olabilir.'),
-  materialQuantityText: z
-    .string()
-    .trim()
-    .min(1, 'Miktar zorunludur.')
-    .max(120, 'Miktar en fazla 120 karakter olabilir.')
-});
+const positiveInteger = (label: string) =>
+  z.coerce
+    .number({ invalid_type_error: `${label} sayısal olmalıdır.` })
+    .int(`${label} tam sayı olmalıdır.`)
+    .positive(`${label} 0'dan büyük olmalıdır.`);
 
 export const productionOrderCreateSchema = z.object({
   orderDate: isoDateSchema,
-  orderNo: z
-    .string()
-    .trim()
-    .min(1, 'İş emri no zorunludur.')
-    .max(64, 'İş emri no en fazla 64 karakter olabilir.'),
-  customerName: z
-    .string()
-    .trim()
-    .min(1, 'Müşteri adı zorunludur.')
-    .max(120, 'Müşteri adı en fazla 120 karakter olabilir.'),
+  orderNo: positiveInteger('İş emri numarası'),
+  customerName: z.string().trim().min(1, 'Müşteri adı zorunludur.').max(120),
+  orderQuantity: positiveInteger('Sipariş miktarı'),
+  deadlineDate: isoDateSchema,
+  finalProductName: z.string().trim().min(1, 'Son ürün adı zorunludur.').max(160),
+  totalPackagingQuantity: positiveInteger('Toplam ambalaj miktarı'),
+  color: z.string().trim().min(1, 'Renk zorunludur.').max(64),
+  moldText: z.string().trim().min(1, 'Kalıp bilgisi zorunludur.').max(120),
+  hasProspectus: z.boolean(),
   marketScope: z.enum(MARKET_SCOPE_VALUES),
   demandSource: z.enum(DEMAND_SOURCE_VALUES),
-  orderQuantity: z
-    .string()
-    .trim()
-    .min(1, 'Sipariş miktarı zorunludur.')
-    .max(64, 'Sipariş miktarı en fazla 64 karakter olabilir.'),
-  deadlineDate: isoDateSchema,
-  finalProductName: z
-    .string()
-    .trim()
-    .min(1, 'Son ürün adı zorunludur.')
-    .max(120, 'Son ürün adı en fazla 120 karakter olabilir.'),
   packagingType: z.enum(PACKAGING_TYPE_VALUES),
-  totalAmountText: z
-    .string()
-    .trim()
-    .min(1, 'Toplam ambalaj miktarı zorunludur.')
-    .max(120, 'Toplam ambalaj miktarı en fazla 120 karakter olabilir.'),
-  dispatchUnits: z
-    .array(
-      z
-        .string()
-        .trim()
-        .min(1, 'Sevk birimi zorunludur.')
-        .max(32, 'Sevk birimi en fazla 32 karakter olabilir.')
-    )
-    .min(1, 'En az bir sevk birimi seçilmelidir.')
-    .max(20, 'Aynı emirde en fazla 20 birim seçilebilir.')
-    .refine((items) => new Set(items).size === items.length, {
-      message: 'Sevk birimleri tekrar edemez.'
-    }),
-  materials: z.array(productionOrderMaterialSchema).min(1, 'En az bir malzeme satırı zorunludur.')
+  plannedRawUnitCode: z.enum(RAW_UNIT_VALUES),
+  plannedMachineUnitCode: z.preprocess(
+    (value) => (value === '' || value == null ? null : value),
+    z.enum(MACHINE_UNIT_VALUES).nullable()
+  )
 });
 
-export const productionOrderListScopeSchema = z.enum([
-  'all',
-  'warehouse',
-  'monitor',
-  'unit'
-]);
+export const productionOrderListScopeSchema = z.enum(['active', 'completed', 'incoming', 'unit']);
 
 export const productionOrderListQuerySchema = z.object({
-  scope: productionOrderListScopeSchema.default('all')
-});
-
-export const productionOrderMaterialAvailabilitySchema = z.object({
-  isAvailable: z.boolean()
+  scope: productionOrderListScopeSchema.default('active'),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(50).default(10)
 });
 
 export const productionOrderDispatchCreateSchema = z.object({
-  unitCodes: z
-    .array(
-      z
-        .string()
-        .trim()
-        .min(1, 'Sevk birimi zorunludur.')
-        .max(32, 'Sevk birimi en fazla 32 karakter olabilir.')
-    )
-    .min(1, 'En az bir hedef birim seçilmelidir.')
-    .max(20)
-    .refine((items) => new Set(items).size === items.length, {
-      message: 'Hedef birimler tekrar edemez.'
-    })
+  unitCode: z.enum(ALL_PRODUCTION_UNIT_VALUES)
+});
+
+export const productionOrderCompleteSchema = z.object({
+  reportedOutputQuantity: positiveInteger('Son sipariş miktarı')
 });

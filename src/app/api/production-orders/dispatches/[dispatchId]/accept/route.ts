@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
-import { acceptProductionOrderDispatch, getUnitCodeByRole } from '@/modules/production-orders/service';
+import { acceptProductionOrderDispatch } from '@/modules/production-orders/service';
 import { PERMISSIONS } from '@/modules/rbac/constants';
 import { withApiHandler } from '@/shared/http/with-api-handler';
 import { requireApiSession } from '@/shared/security/auth-guards';
@@ -14,21 +14,14 @@ interface RouteContext {
 
 export async function POST(request: NextRequest, context: RouteContext): Promise<NextResponse> {
   return withApiHandler(request, async ({ requestId }) => {
+    const session = await requireApiSession(request, requestId, PERMISSIONS.PRODUCTION_ORDERS_INCOMING);
     const params = await context.params;
-    const session = await requireApiSession(
-      request,
-      requestId,
-      PERMISSIONS.PRODUCTION_ORDERS_UNIT_TASK
-    );
-
-    await acceptProductionOrderDispatch({
+    const item = await acceptProductionOrderDispatch({
       dispatchId: params.dispatchId,
       actorUserId: session.userId,
-      actorRole: session.role,
-      actorUnitCode: session.hatUnitCode ?? getUnitCodeByRole(session.role),
-      requestId
+      actorUnitCode: session.hatUnitCode
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ item });
   });
 }

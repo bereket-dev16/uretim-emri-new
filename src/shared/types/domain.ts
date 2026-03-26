@@ -1,28 +1,13 @@
-export type Role = 'admin' | 'production_manager' | 'warehouse_manager' | 'hat' | 'tablet1';
-
-export type QuantityUnit = 'gr' | 'adet';
-
-export type ProductType =
-  | 'kutu'
-  | 'blister_folyo'
-  | 'sase_folyo'
-  | 'prospektus'
-  | 'sise'
-  | 'etiket'
-  | 'kapak'
-  | 'sleeve';
-
-export type ProductCategory = 'sarf' | 'hammadde';
+export type Role = 'admin' | 'production_manager' | 'hat';
 
 export type MarketScope = 'ihracat' | 'ic_piyasa';
-
 export type DemandSource = 'numune' | 'musteri_talebi' | 'stok';
-
 export type PackagingType = 'kapsul' | 'tablet' | 'sivi' | 'sase' | 'softjel';
 
 export type ProductionUnit = string;
-
+export type ProductionUnitGroup = 'HAMMADDE' | 'MAKINE';
 export type ProductionDispatchStatus = 'pending' | 'in_progress' | 'completed';
+export type ProductionOrderStatus = 'active' | 'completed';
 
 export interface SessionDTO {
   userId: string;
@@ -46,74 +31,65 @@ export interface UserDTO {
 export interface ProductionUnitDTO {
   code: string;
   name: string;
+  unitGroup: ProductionUnitGroup;
   isActive: boolean;
 }
 
-export interface StockCreateInput {
-  irsaliyeNo: string;
-  productName: string;
-  quantityNumeric: number;
-  quantityUnit: QuantityUnit;
-  productType: ProductType;
-  stockEntryDate: string;
-  productCategory: ProductCategory;
-}
-
-export interface StockListItem {
-  id: string;
-  irsaliyeNo: string;
-  productName: string;
-  quantityNumeric: number;
-  quantityUnit: QuantityUnit;
-  productType: ProductType;
-  stockEntryDate: string;
-  productCategory: ProductCategory;
-  barcodeNo: string;
-  createdByRole: Role;
-  createdAt: string;
-}
-
 export interface DashboardSummary {
-  totalStockRecords: number;
-  stockRecordsToday: number;
-  activeUserCount: number;
+  ordersCreatedToday: number;
+  completedOrders: number;
+  activeOrders: number;
 }
 
-export interface ProductionOrderMaterialDTO {
+export interface ProductionOrderAttachmentDTO {
   id: string;
-  materialProductType: ProductType;
-  materialName: string;
-  materialQuantityText: string;
-  isAvailable: boolean;
-  checkedAt: string | null;
-  checkedByUsername: string | null;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  uploadedByUsername: string | null;
 }
 
 export interface ProductionOrderDispatchDTO {
   id: string;
   unitCode: ProductionUnit;
   unitName: string;
+  unitGroup: ProductionUnitGroup;
   status: ProductionDispatchStatus;
   dispatchedAt: string;
   acceptedAt: string | null;
   completedAt: string | null;
+  reportedOutputQuantity: number | null;
 }
 
 export interface ProductionOrderListItemDTO {
   id: string;
   orderDate: string;
-  orderNo: string;
+  orderNo: number;
   customerName: string;
-  marketScope: MarketScope;
-  demandSource: DemandSource;
-  orderQuantity: string;
+  orderQuantity: number;
   deadlineDate: string;
   finalProductName: string;
+  totalPackagingQuantity: number;
+  color: string;
+  moldText: string;
+  hasProspectus: boolean;
+  marketScope: MarketScope;
+  demandSource: DemandSource;
   packagingType: PackagingType;
-  totalAmountText: string;
-  dispatchUnitCode: ProductionUnit;
-  createdByRole: Role;
+  plannedRawUnitCode: ProductionUnit;
+  plannedMachineUnitCode: ProductionUnit | null;
+  status: ProductionOrderStatus;
+  createdByUsername: string;
   createdAt: string;
-  materials: ProductionOrderMaterialDTO[];
+  updatedAt: string;
+  attachments: ProductionOrderAttachmentDTO[];
   dispatches: ProductionOrderDispatchDTO[];
+}
+
+export interface PaginatedProductionOrdersDTO {
+  items: ProductionOrderListItemDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

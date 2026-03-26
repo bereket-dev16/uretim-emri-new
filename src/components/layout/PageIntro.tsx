@@ -12,18 +12,18 @@ interface PageIntroProps {
 
 export function PageIntro({ badge, title, description, actions, className }: PageIntroProps) {
   return (
-    <section className={cn('ops-panel rounded-[30px] px-6 py-7 sm:px-8 sm:py-8', className)}>
-      <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-4">
-          {badge ? <span className="ops-kicker">{badge}</span> : null}
-          <div className="space-y-3">
-            <h1 className="max-w-4xl text-[2.45rem] leading-[0.92] text-foreground sm:text-[3.1rem]">{title}</h1>
+    <section className={cn('page-card px-5 py-5 sm:px-6 sm:py-6', className)}>
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-3">
+          {badge ? <span className="page-kicker">{badge}</span> : null}
+          <div className="space-y-2">
+            <h1 className="text-[2rem] font-semibold text-slate-950 sm:text-[2.4rem]">{title}</h1>
             {description ? (
-              <p className="max-w-3xl text-sm font-medium leading-7 text-muted-foreground sm:text-base">{description}</p>
+              <p className="max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">{description}</p>
             ) : null}
           </div>
         </div>
-        {actions ? <div className="flex flex-wrap items-center gap-3 lg:justify-end">{actions}</div> : null}
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
     </section>
   );

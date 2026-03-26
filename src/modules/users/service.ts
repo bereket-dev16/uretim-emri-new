@@ -1,6 +1,5 @@
 import type { QueryResultRow } from 'pg';
 
-import { createAuditLog } from '@/modules/audit/service';
 import { AppError } from '@/shared/errors/app-error';
 import { queryDb, withTransaction } from '@/shared/db/client';
 import { hashPassword } from '@/shared/security/password';
@@ -47,8 +46,6 @@ interface CreateUserParams {
   password: string;
   role: Role;
   hatUnitCode?: string | null;
-  actorUserId: string;
-  requestId: string;
 }
 
 export async function createUser(params: CreateUserParams): Promise<UserDTO> {
@@ -70,22 +67,7 @@ export async function createUser(params: CreateUserParams): Promise<UserDTO> {
       [params.username, passwordHash, params.role, params.hatUnitCode ?? null]
     );
 
-    const created = result.rows[0];
-
-    await createAuditLog({
-      actorUserId: params.actorUserId,
-      actionType: 'USER_CREATED',
-      entityType: 'user',
-      entityId: created.id,
-      payload: {
-        username: created.username,
-        role: created.role,
-        hatUnitCode: created.hat_unit_code
-      },
-      requestId: params.requestId
-    });
-
-    return mapUser(created);
+    return mapUser(result.rows[0]);
   } catch (error) {
     const pgError = error as { code?: string };
 
@@ -107,8 +89,6 @@ interface UpdateUserParams {
   role?: Role;
   hatUnitCode?: string | null;
   isActive?: boolean;
-  actorUserId: string;
-  requestId: string;
 }
 
 export async function updateUser(params: UpdateUserParams): Promise<UserDTO> {
@@ -143,7 +123,7 @@ export async function updateUser(params: UpdateUserParams): Promise<UserDTO> {
     });
   }
 
-  updates.push(`updated_at = NOW()`);
+  updates.push('updated_at = NOW()');
   values.push(params.id);
 
   try {
@@ -167,20 +147,6 @@ export async function updateUser(params: UpdateUserParams): Promise<UserDTO> {
       });
     }
 
-    await createAuditLog({
-      actorUserId: params.actorUserId,
-      actionType: 'USER_UPDATED',
-      entityType: 'user',
-      entityId: updated.id,
-      payload: {
-        username: updated.username,
-        role: updated.role,
-        hatUnitCode: updated.hat_unit_code,
-        isActive: updated.is_active
-      },
-      requestId: params.requestId
-    });
-
     return mapUser(updated);
   } catch (error) {
     const pgError = error as { code?: string };
@@ -200,8 +166,6 @@ export async function updateUser(params: UpdateUserParams): Promise<UserDTO> {
 interface ResetUserPasswordParams {
   id: string;
   password: string;
-  actorUserId: string;
-  requestId: string;
 }
 
 export async function resetUserPassword(params: ResetUserPasswordParams): Promise<void> {
@@ -225,21 +189,11 @@ export async function resetUserPassword(params: ResetUserPasswordParams): Promis
       publicMessage: 'Kullanıcı bulunamadı.'
     });
   }
-
-  await createAuditLog({
-    actorUserId: params.actorUserId,
-    actionType: 'USER_PASSWORD_RESET',
-    entityType: 'user',
-    entityId: params.id,
-    payload: {},
-    requestId: params.requestId
-  });
 }
 
 interface DeleteUserParams {
   id: string;
   actorUserId: string;
-  requestId: string;
 }
 
 export async function deleteUser(params: DeleteUserParams): Promise<void> {
@@ -251,71 +205,46 @@ export async function deleteUser(params: DeleteUserParams): Promise<void> {
     });
   }
 
-  try {
-    const deletedUserId = await withTransaction(async (client) => {
-      await client.query(
-        `
-          UPDATE audit_logs
-          SET actor_user_id = NULL
-          WHERE actor_user_id = $1::uuid
-        `,
-        [params.id]
-      );
+  await withTransaction(async (client) => {
+    await client.query(
+      `
+        DELETE FROM sessions
+        WHERE user_id = $1::uuid
+      `,
+      [params.id]
+    );
 
-      await client.query(
-        `
-          DELETE FROM sessions
-          WHERE user_id = $1::uuid
-        `,
-        [params.id]
-      );
+    const result = await client.query<{ id: string }>(
+      `
+        DELETE FROM users
+        WHERE id = $1::uuid
+        RETURNING id
+      `,
+      [params.id]
+    );
 
-      const result = await client.query<{ id: string }>(
-        `
-          DELETE FROM users
-          WHERE id = $1::uuid
-          RETURNING id
-        `,
-        [params.id]
-      );
-
-      const deletedUser = result.rows[0];
-
-      if (!deletedUser) {
-        throw new AppError({
-          status: 404,
-          code: 'USER_NOT_FOUND',
-          publicMessage: 'Kullanıcı bulunamadı.'
-        });
-      }
-
-      return deletedUser.id;
-    });
-
-    await createAuditLog({
-      actorUserId: params.actorUserId,
-      actionType: 'USER_DELETED',
-      entityType: 'user',
-      entityId: deletedUserId,
-      payload: {},
-      requestId: params.requestId
-    });
-  } catch (error) {
+    if (!result.rows[0]) {
+      throw new AppError({
+        status: 404,
+        code: 'USER_NOT_FOUND',
+        publicMessage: 'Kullanıcı bulunamadı.'
+      });
+    }
+  }).catch((error) => {
     if (error instanceof AppError) {
       throw error;
     }
 
-    const pgError = error as { code?: string; constraint?: string };
+    const pgError = error as { code?: string };
 
     if (pgError.code === '23503') {
       throw new AppError({
         status: 409,
         code: 'USER_DELETE_BLOCKED',
-        publicMessage:
-          'Bu kullanıcıya bağlı kayıtlar bulunduğu için kalıcı silme yapılamadı. Önce ilişkili kayıtları temizleyin.'
+        publicMessage: 'Bu kullanıcıya bağlı kayıtlar bulunduğu için silme yapılamadı.'
       });
     }
 
     throw error;
-  }
+  });
 }

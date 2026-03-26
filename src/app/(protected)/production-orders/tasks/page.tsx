@@ -2,36 +2,55 @@ import { ProductionUnitTasksPanel } from '@/components/production-orders/Product
 import { PageIntro } from '@/components/layout/PageIntro';
 import { SectionPanel } from '@/components/layout/SectionPanel';
 import { getProductionUnitLabel } from '@/modules/production-orders/constants';
-import { getUnitCodeByRole, listProductionOrders } from '@/modules/production-orders/service';
+import { listProductionOrders } from '@/modules/production-orders/service';
 import { PERMISSIONS } from '@/modules/rbac/constants';
 import { requirePageSession } from '@/shared/security/auth-guards';
 
-export default async function ProductionUnitTasksPage() {
+interface ProductionUnitTasksPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+function pickPage(value: string | string[] | undefined): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export default async function ProductionUnitTasksPage({ searchParams }: ProductionUnitTasksPageProps) {
   const session = await requirePageSession({
     permission: PERMISSIONS.PRODUCTION_ORDERS_UNIT_TASK
   });
 
-  const unitCode = session.hatUnitCode ?? getUnitCodeByRole(session.role);
-  const items = await listProductionOrders({
+  const unitCode = session.hatUnitCode;
+  const page = pickPage((await searchParams)?.page);
+  const pageSize = 10;
+  const payload = await listProductionOrders({
     scope: 'unit',
     actorRole: session.role,
-    actorUnitCode: unitCode
+    actorUnitCode: unitCode,
+    page,
+    pageSize
   });
+  const totalPages = Math.max(1, Math.ceil(payload.total / pageSize));
 
   return (
-    <div className="mx-auto flex w-full max-w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="page-shell space-y-6">
       <PageIntro
         badge="Görev"
-        title="Birim görevleri"
+        title="Devam Eden Emirler"
         description={
           unitCode
-            ? `${getProductionUnitLabel(unitCode)} birimine gelen görevleri buradan yönetin.`
+            ? `${getProductionUnitLabel(unitCode)} biriminde kabul edilmiş ve üzerinde çalışılan emirleri buradan tamamlayın.`
             : 'Bu kullanıcıya atanmış bir birim bulunamadı.'
         }
       />
 
-      <SectionPanel title="Görev listesi" description="Önce kabul edin, ardından tamamlandı olarak işaretleyin.">
-        <ProductionUnitTasksPanel initialItems={items} unitCode={unitCode} />
+      <SectionPanel
+        title="Görev Listesi"
+        description="Tamamlama sırasında son sipariş miktarını girmek zorunludur."
+        action={<span className="text-sm text-slate-600">Sayfa {page} / {totalPages}</span>}
+      >
+        <ProductionUnitTasksPanel initialItems={payload.items} page={page} pageSize={pageSize} />
       </SectionPanel>
     </div>
   );

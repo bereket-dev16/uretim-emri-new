@@ -3,47 +3,39 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-import { getProductionUnitLabel } from '@/modules/production-orders/constants';
+import type { ProductionOrderListItemDTO } from '@/shared/types/domain';
 import {
   PRODUCTION_ORDERS_POLL_INTERVAL_MS,
   PRODUCTION_ORDERS_POLL_JITTER_MS
 } from '@/shared/config/client-polling';
-import type { ProductionOrderListItemDTO, ProductionUnit } from '@/shared/types/domain';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
-  findDispatchByUnit,
-  formatDate,
-  materialSummary,
-  orderMetaRows,
-  statusClass,
-  statusLabel
-} from './utils';
-import {
-  DetailFieldGrid,
-  DispatchStatusGrid,
-  MaterialsList,
-  ResponsiveDetailSection
-} from './OrderDetailBlocks';
-import { ProductionOrderCardHeader } from './ProductionOrderCardHeader';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { AttachmentList, DispatchHistoryTable, OrderMetaGrid, OrderSummaryLine } from './order-view';
 
 interface ProductionUnitTasksPanelProps {
   initialItems: ProductionOrderListItemDTO[];
-  unitCode: ProductionUnit | null;
+  page: number;
+  pageSize: number;
 }
 
-interface ListResponse {
-  items: ProductionOrderListItemDTO[];
-}
-
-interface RefreshListOptions {
-  showError?: boolean;
-}
-
-export function ProductionUnitTasksPanel({ initialItems, unitCode }: ProductionUnitTasksPanelProps) {
+export function ProductionUnitTasksPanel({
+  initialItems,
+  page,
+  pageSize
+}: ProductionUnitTasksPanelProps) {
   const [items, setItems] = useState(initialItems);
-  const [expandedId, setExpandedId] = useState<string | null>(initialItems[0]?.id ?? null);
-  const [busyDispatchId, setBusyDispatchId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [completeTarget, setCompleteTarget] = useState<ProductionOrderListItemDTO | null>(null);
+  const [reportedOutputQuantity, setReportedOutputQuantity] = useState('');
+  const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -51,115 +43,93 @@ export function ProductionUnitTasksPanel({ initialItems, unitCode }: ProductionU
     setItems(initialItems);
   }, [initialItems]);
 
-  const filteredItems = useMemo(() => {
-    if (!unitCode) {
-      return [];
-    }
-
-    return items
-      .filter((item) => Boolean(findDispatchByUnit(item, unitCode)))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [items, unitCode]);
-
-  async function refreshList(options: RefreshListOptions = {}) {
-    const showError = options.showError ?? true;
-
-    try {
-      const response = await fetch('/api/production-orders?scope=unit', {
-        method: 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store'
-      });
-      const payload = (await response.json()) as ListResponse;
-
-      if (!response.ok) {
-        if (showError) {
-          setErrorMessage((payload as { error?: { message?: string } }).error?.message ?? 'Liste güncellenemedi.');
-        }
-        return;
-      }
-
-      setItems(payload.items);
-    } catch {
-      if (showError) {
-        setErrorMessage('Sunucuya erişilemedi.');
-      }
-    }
-  }
-
   useEffect(() => {
     let disposed = false;
     let inFlight = false;
-    const pollIntervalMs =
+    const intervalMs =
       PRODUCTION_ORDERS_POLL_INTERVAL_MS +
       Math.floor(Math.random() * (PRODUCTION_ORDERS_POLL_JITTER_MS + 1));
 
-    async function syncList() {
-      if (disposed || inFlight || busyDispatchId || document.visibilityState === 'hidden') {
+    async function sync() {
+      if (disposed || inFlight || busyOrderId || document.visibilityState === 'hidden') {
         return;
       }
 
       inFlight = true;
+
       try {
-        await refreshList({ showError: false });
+        const response = await fetch(`/api/production-orders?scope=unit&page=${page}&pageSize=${pageSize}`, {
+          credentials: 'same-origin',
+          cache: 'no-store'
+        });
+        const payload = await response.json();
+
+        if (!response.ok || !Array.isArray(payload.items)) {
+          return;
+        }
+
+        setItems(payload.items as ProductionOrderListItemDTO[]);
       } finally {
         inFlight = false;
       }
     }
 
-    const intervalId = window.setInterval(() => {
-      void syncList();
-    }, pollIntervalMs);
-    void syncList();
+    const timer = window.setInterval(() => {
+      void sync();
+    }, intervalMs);
+    void sync();
 
-    function handleVisibilityChange() {
+    function handleVisibility() {
       if (document.visibilityState === 'visible') {
-        void syncList();
+        void sync();
       }
     }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       disposed = true;
-      window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [busyDispatchId]);
+  }, [busyOrderId, page, pageSize]);
 
-  async function acceptTask(dispatchId: string) {
-    setBusyDispatchId(dispatchId);
-    setErrorMessage(null);
-    setStatusMessage(null);
+  const rows = useMemo(
+    () => [...items].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [items]
+  );
 
-    try {
-      const response = await fetch(`/api/production-orders/dispatches/${dispatchId}/accept`, {
-        method: 'POST'
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setErrorMessage(payload.error?.message ?? 'Görev kabul edilemedi.');
-        return;
-      }
-
-      await refreshList();
-      setStatusMessage('Görev kabul edildi. Durum: Çalışıyor.');
-    } catch {
-      setErrorMessage('Sunucuya erişilemedi.');
-    } finally {
-      setBusyDispatchId(null);
+  async function handleComplete() {
+    if (!completeTarget) {
+      return;
     }
-  }
 
-  async function completeTask(dispatchId: string) {
-    setBusyDispatchId(dispatchId);
+    const activeDispatch = completeTarget.dispatches.find((dispatch) => dispatch.status === 'in_progress');
+
+    if (!activeDispatch) {
+      setErrorMessage('Çalışan görev bulunamadı.');
+      return;
+    }
+
+    if (!reportedOutputQuantity.trim()) {
+      setErrorMessage('Son sipariş miktarı zorunludur.');
+      return;
+    }
+
+    setBusyOrderId(completeTarget.id);
     setErrorMessage(null);
     setStatusMessage(null);
 
     try {
-      const response = await fetch(`/api/production-orders/dispatches/${dispatchId}/complete`, {
-        method: 'POST'
+      const response = await fetch(`/api/production-orders/dispatches/${activeDispatch.id}/complete`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          reportedOutputQuantity: Number(reportedOutputQuantity)
+        })
       });
       const payload = await response.json();
 
@@ -168,145 +138,110 @@ export function ProductionUnitTasksPanel({ initialItems, unitCode }: ProductionU
         return;
       }
 
-      await refreshList();
-      setStatusMessage('Görev bitti olarak işaretlendi.');
+      setItems((current) => current.filter((item) => item.id !== completeTarget.id));
+      setStatusMessage(`Emir #${completeTarget.orderNo} tamamlandı olarak iletildi.`);
+      setCompleteTarget(null);
+      setReportedOutputQuantity('');
     } catch {
       setErrorMessage('Sunucuya erişilemedi.');
     } finally {
-      setBusyDispatchId(null);
+      setBusyOrderId(null);
     }
   }
 
-  if (!unitCode) {
+  if (rows.length === 0) {
     return (
-      <Card className="ops-panel rounded-[18px] border-border/70 bg-card">
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Bu hesap bir üretim birimine bağlı değil.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (filteredItems.length === 0) {
-    return (
-      <Card className="ops-panel rounded-[18px] border-border/70 bg-card">
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          {getProductionUnitLabel(unitCode)} için bekleyen görev bulunmuyor.
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border border-dashed border-slate-300 px-5 py-10 text-center text-sm text-slate-500">
+        Çalışan görev bulunmuyor.
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
       {statusMessage ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {statusMessage}
         </div>
       ) : null}
       {errorMessage ? (
-        <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {errorMessage}
         </div>
       ) : null}
 
-      {filteredItems.map((item) => {
-        const dispatch = findDispatchByUnit(item, unitCode);
-        const isExpanded = expandedId === item.id;
-
-        if (!dispatch) {
-          return null;
-        }
+      {rows.map((order) => {
+        const isExpanded = expandedId === order.id;
 
         return (
-          <Card key={item.id} className="ops-panel rounded-[18px] border-border/70 bg-card">
-            <CardHeader className="pb-4">
-              <ProductionOrderCardHeader
-                customerName={item.customerName}
-                finalProductName={item.finalProductName}
-                orderNo={item.orderNo}
-                deadlineLabel={formatDate(item.deadlineDate)}
-                statusBadge={
-                  <span className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold ${statusClass(dispatch.status)}`}>
-                    {statusLabel(dispatch.status)}
-                  </span>
-                }
-                summaryItems={[materialSummary(item)]}
-                actions={
-                  <>
-                    {dispatch.status === 'pending' && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="w-full sm:w-auto"
-                        onClick={() => void acceptTask(dispatch.id)}
-                        disabled={busyDispatchId === dispatch.id}
-                      >
-                        {busyDispatchId === dispatch.id ? 'İşleniyor...' : 'Görevi Kabul Et'}
-                      </Button>
-                    )}
-                    {dispatch.status === 'in_progress' && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="w-full sm:w-auto"
-                        onClick={() => void completeTask(dispatch.id)}
-                        disabled={busyDispatchId === dispatch.id}
-                      >
-                        {busyDispatchId === dispatch.id ? 'İşleniyor...' : 'Bitti'}
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
-                    >
-                      {isExpanded ? (
-                        <>
-                          <ChevronUp className="mr-1 h-4 w-4" />
-                          Detayı Gizle
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="mr-1 h-4 w-4" />
-                          Detayı Göster
-                        </>
-                      )}
-                    </Button>
-                  </>
-                }
-              />
-            </CardHeader>
+          <div key={order.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <OrderSummaryLine order={order} />
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+              <div className="text-sm text-slate-600">Bu emir üzerinde çalışma devam ediyor. Tamamlandığında bildirmeniz gerekir.</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : order.id)}>
+                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {isExpanded ? 'Detayı Gizle' : 'Detaylı Göster'}
+                </Button>
+                <Button type="button" size="sm" onClick={() => setCompleteTarget(order)}>
+                  Bitir
+                </Button>
+              </div>
+            </div>
 
-            {isExpanded && (
-              <CardContent className="space-y-5">
-                <ResponsiveDetailSection
-                  title="Genel bilgiler"
-                  summary={`Durum: ${statusLabel(dispatch.status)} • Termin ${formatDate(item.deadlineDate)}`}
-                  defaultOpen
-                >
-                  <DetailFieldGrid
-                    rows={[
-                      ...orderMetaRows(item),
-                      { label: 'Görev Durumu', value: statusLabel(dispatch.status) }
-                    ]}
-                  />
-                </ResponsiveDetailSection>
-
-                <ResponsiveDetailSection title="Malzemeler" summary={materialSummary(item)}>
-                  <MaterialsList materials={item.materials} mode="unit" />
-                </ResponsiveDetailSection>
-
-                <ResponsiveDetailSection title="Görev akışı" summary={statusLabel(dispatch.status)}>
-                  <DispatchStatusGrid dispatches={[dispatch]} />
-                </ResponsiveDetailSection>
-              </CardContent>
-            )}
-          </Card>
+            {isExpanded ? (
+              <div className="space-y-6 border-t border-slate-200 px-5 py-5">
+                <section className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-950">Form Bilgileri</h3>
+                  <OrderMetaGrid order={order} />
+                </section>
+                <section className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-950">Sevk Geçmişi</h3>
+                  <DispatchHistoryTable order={order} />
+                </section>
+                <section className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>
+                  <AttachmentList order={order} canDownload={false} />
+                </section>
+              </div>
+            ) : null}
+          </div>
         );
       })}
+
+      <Dialog open={Boolean(completeTarget)} onOpenChange={(open) => (!open ? setCompleteTarget(null) : undefined)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Görevi Bitir</DialogTitle>
+            <DialogDescription>
+              {completeTarget
+                ? `#${completeTarget.orderNo} numaralı emir tamamlandı olarak iletilecek.`
+                : 'Seçili görev tamamlanacak.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="reportedOutputQuantity">
+              Son Sipariş Miktarı
+            </label>
+            <Input
+              id="reportedOutputQuantity"
+              inputMode="numeric"
+              value={reportedOutputQuantity}
+              onChange={(event) => setReportedOutputQuantity(event.target.value.replace(/\D/g, ''))}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCompleteTarget(null)}>
+              Vazgeç
+            </Button>
+            <Button type="button" onClick={() => void handleComplete()} disabled={busyOrderId === completeTarget?.id}>
+              Onayla
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
