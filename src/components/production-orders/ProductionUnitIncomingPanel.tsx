@@ -18,13 +18,13 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import {
-  AttachmentList,
   DispatchGroupOverview,
   DispatchHistoryTable,
   OrderMetaGrid,
   OrderNotePanel,
   OrderSummaryLine
 } from './order-view';
+import { AttachmentList } from './AttachmentList';
 
 interface ProductionUnitIncomingPanelProps {
   initialItems: ProductionOrderListItemDTO[];

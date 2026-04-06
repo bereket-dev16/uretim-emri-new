@@ -19,13 +19,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
-  AttachmentList,
   DispatchGroupOverview,
   DispatchHistoryTable,
   OrderMetaGrid,
   OrderNotePanel,
   OrderSummaryLine
 } from './order-view';
+import { AttachmentList } from './AttachmentList';
 
 interface ProductionUnitTasksPanelProps {
   initialItems: ProductionOrderListItemDTO[];

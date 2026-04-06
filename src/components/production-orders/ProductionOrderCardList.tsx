@@ -5,10 +5,10 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import {
   availableDispatchTargets,
-  AttachmentList,
   DispatchGroupOverview,
   DispatchHistoryTable,
   formatDate,
+  getVisibleGroups,
   hasAnyOpenDispatch,
   hasOpenDispatchForGroup,
   OrderMetaGrid,
@@ -16,6 +16,7 @@ import {
   OrderSummaryLine,
   suggestedDispatchUnit
 } from './order-view';
+import { AttachmentList } from './AttachmentList';
 import {
   PRODUCTION_ORDERS_POLL_INTERVAL_MS,
   PRODUCTION_ORDERS_POLL_JITTER_MS
@@ -51,8 +52,6 @@ interface DispatchDialogTarget {
 }
 
 const EMPTY_PRODUCTION_UNITS: ProductionUnitDTO[] = [];
-const GROUP_ORDER: ProductionUnitGroup[] = ['HAMMADDE', 'MAKINE'];
-
 function selectionKey(orderId: string, group: ProductionUnitGroup): string {
   return `${orderId}:${group}`;
 }
@@ -87,7 +86,7 @@ export function ProductionOrderCardList({
       let changed = false;
 
       for (const order of initialItems) {
-        for (const group of GROUP_ORDER) {
+        for (const group of getVisibleGroups(order)) {
           const key = selectionKey(order.id, group);
           const nextValue = current[key] ?? suggestedDispatchUnit(order, productionUnits, group) ?? '';
 
@@ -274,6 +273,7 @@ export function ProductionOrderCardList({
       {sortedItems.map((order) => {
         const isExpanded = expandedId === order.id;
         const orderHasOpenDispatch = hasAnyOpenDispatch(order);
+        const visibleGroups = getVisibleGroups(order);
 
         return (
           <div key={order.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -331,8 +331,8 @@ export function ProductionOrderCardList({
                       </p>
                     </div>
 
-                    <div className="grid gap-4 xl:grid-cols-2">
-                      {GROUP_ORDER.map((group) => {
+                    <div className={`grid gap-4 ${visibleGroups.length > 1 ? 'xl:grid-cols-2' : ''}`}>
+                      {visibleGroups.map((group) => {
                         const groupTargets = availableDispatchTargets(order, productionUnits, group);
                         const groupHasOpenDispatch = hasOpenDispatchForGroup(order, group);
                         const key = selectionKey(order.id, group);

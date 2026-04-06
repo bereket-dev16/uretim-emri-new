@@ -121,13 +121,28 @@ export function getOrderStateLabel(order: ProductionOrderListItemDTO): string {
     return 'Bitti';
   }
 
-  const summary = GROUP_ORDER.map((group) => {
+  const summary = getVisibleGroups(order).map((group) => {
     const dispatch = getDisplayDispatchForGroup(order, group);
     const label = dispatch ? getDispatchStatusLabel(dispatch.status) : 'Hazır';
     return `${PRODUCTION_UNIT_GROUP_LABELS[group]}: ${label}`;
   });
 
   return summary.join(' • ');
+}
+
+export function hasGroupActivity(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): boolean {
+  if (group === 'HAMMADDE') {
+    return true;
+  }
+
+  return Boolean(order.plannedMachineUnitCode) || getDispatchesForGroup(order, group).length > 0;
+}
+
+export function getVisibleGroups(order: ProductionOrderListItemDTO): ProductionUnitGroup[] {
+  return GROUP_ORDER.filter((group) => hasGroupActivity(order, group));
 }
 
 export function buildOrderMetaRows(order: ProductionOrderListItemDTO) {
@@ -188,8 +203,14 @@ export function suggestedDispatchUnit(
 }
 
 export function OrderSummaryLine({ order }: { order: ProductionOrderListItemDTO }) {
+  const visibleGroups = getVisibleGroups(order);
+  const gridColumns =
+    visibleGroups.length === 1
+      ? 'lg:grid-cols-[0.8fr_1.1fr_0.7fr_0.95fr]'
+      : 'lg:grid-cols-[0.8fr_1.1fr_0.7fr_0.95fr_0.95fr]';
+
   return (
-    <div className="grid gap-3 border-b border-slate-200 px-5 py-4 lg:grid-cols-[0.8fr_1.1fr_0.7fr_0.95fr_0.95fr] lg:items-start">
+    <div className={`grid gap-3 border-b border-slate-200 px-5 py-4 ${gridColumns} lg:items-start`}>
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">İş Emri</div>
         <div className="mt-1 text-base font-semibold text-slate-950">#{order.orderNo}</div>
@@ -202,7 +223,7 @@ export function OrderSummaryLine({ order }: { order: ProductionOrderListItemDTO 
         <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">Termin</div>
         <div className="mt-1 text-sm text-slate-700">{formatDate(order.deadlineDate)}</div>
       </div>
-      {GROUP_ORDER.map((group) => {
+      {visibleGroups.map((group) => {
         const dispatch = getDisplayDispatchForGroup(order, group);
 
         return (
@@ -253,9 +274,11 @@ export function OrderNotePanel({ order }: { order: ProductionOrderListItemDTO })
 }
 
 export function DispatchGroupOverview({ order }: { order: ProductionOrderListItemDTO }) {
+  const visibleGroups = getVisibleGroups(order);
+
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      {GROUP_ORDER.map((group) => {
+    <div className={`grid gap-3 ${visibleGroups.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+      {visibleGroups.map((group) => {
         const openDispatch = getOpenDispatchForGroup(order, group);
         const lastDispatch = getLastDispatchForGroup(order, group);
         const displayDispatch = openDispatch ?? lastDispatch;
@@ -299,7 +322,7 @@ export function DispatchGroupOverview({ order }: { order: ProductionOrderListIte
   );
 }
 
-export function AttachmentList({ order, canDownload }: { order: ProductionOrderListItemDTO; canDownload: boolean }) {
+export function AttachmentListFallback({ order }: { order: ProductionOrderListItemDTO }) {
   if (order.attachments.length === 0) {
     return <div className="text-sm text-slate-500">Ek dosya bulunmuyor.</div>;
   }
@@ -317,15 +340,12 @@ export function AttachmentList({ order, canDownload }: { order: ProductionOrderL
               {Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB • {attachment.mimeType} • {formatDateTime(attachment.createdAt)}
             </div>
           </div>
-          {canDownload ? (
-            <Link
-              href={`/api/production-orders/${order.id}/attachments/${attachment.id}`}
-              target="_blank"
-              className="text-sm font-medium text-blue-700"
-            >
-              Aç / İndir
-            </Link>
-          ) : null}
+          <Link
+            href={`/api/production-orders/${order.id}/attachments/${attachment.id}?download=1`}
+            className="text-sm font-medium text-blue-700"
+          >
+            İndir
+          </Link>
         </div>
       ))}
     </div>

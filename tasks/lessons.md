@@ -104,3 +104,5 @@
 - Ayni emir icin paralel ama sinirli gorev akisi gerekiyorsa "tek acik dispatch" kurali uygulama kodunda degil, `production_order_id + unit_group` partial unique index'i ile DB seviyesinde garanti altina alinmalidir; aksi halde iki mudur istegi race condition ile ayni grupta cift gorev acabilir.
 - Bir order ayni anda hem hammadde hem makine gorevi tasiyabiliyorsa unit ekranlarinda "ilk acik dispatch" mantigi yanlistir; accept/complete islemleri actor'un atanmis `hatUnitCode` birimine gore secilmelidir.
 - Attachment yetkisi yalniz UI'da gizlenerek korunmamalidir; API listeleme ve indirme katmaninda da role gore attachment payload'i budanip erisim izni ayri permission ile korunmalidir.
+- Ek dosya UX'inde `Aç` ve `İndir` ayni linkte birlestirilmemelidir; `inline` ve `attachment` davranislari route seviyesinde query/headers ile ayrilirsa kullanici ne olacagini onceden anlar.
+- Paralel grup modeli varken `MAKINE` kolonu bos placeholder ile surekli gosterilirse yanlis "hazir gorev" algisi yaratir; gercekten secilmemis ve hic dispatch acilmamis grup tamamen gizlenmelidir.

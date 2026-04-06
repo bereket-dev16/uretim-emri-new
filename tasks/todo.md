@@ -717,3 +717,16 @@
 - Attachment MIME whitelist'i PDF + gorsel + Word/Excel tiplerini kapsayacak sekilde genisletildi; `admin`, `production_manager` ve `raw_preparation` detaylarda ekleri gorurken `machine_operator` tarafinda attachment bolumu ve indirme erisimi kaldirildi.
 - Admin panelinde rol secenekleri yeni role setine uyarlandi; `raw_preparation` yalniz `HAMMADDE`, `machine_operator` yalniz `MAKINE` birimlerini secebiliyor.
 - Dogrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.
+
+## Iteration: Attachment Preview And Hidden Empty Machine Group
+### Plan
+- [x] Ek dosyalarda `Aç` ve `İndir` aksiyonlarini ayirmak
+- [x] Previewable dosyalar icin dialog tabanli onizleme, ofis dosyalari icin bilgilendirici ac ekranı eklemek
+- [x] Makine birimi secilmemis ve hic dispatch acilmamis emirlerde `MAKINE` grup kolonu/karti gorunurlugunu kaldirmak
+- [x] Typecheck ve build ile davranisi tekrar dogrulamak
+
+### Review
+- Attachment listesi artik tek `Aç / İndir` linki yerine ayri `Aç` ve `İndir` butonlari kullaniyor; PDF ve gorseller dialog icinde onizleniyor, Word/Excel gibi tarayici ici onizlenemeyen dosyalarda ise kullaniciya net bir indirme yonlendirmesi gosteriliyor.
+- Attachment download route'u `?download=1` query param'i ile `Content-Disposition: attachment` dondurecek sekilde guncellendi; boylece `Aç` ve `İndir` davranislari backend tarafinda da ayrildi.
+- Emirde makine secilmemisse ve makine tarafinda hic dispatch acilmamissa `MAKINE` grubu artik ozet satiri, surec karti ve yonetim bloklarinda gosterilmiyor; grup ancak secildiginde veya ilk sevk acildiginda gorunur hale geliyor.
+- Dogrulama: `corepack pnpm typecheck`, `corepack pnpm build` basarili.
