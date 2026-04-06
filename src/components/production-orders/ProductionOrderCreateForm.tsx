@@ -475,12 +475,20 @@ export function ProductionOrderCreateForm({
                 <Link href="/tools/pdf-convert" className="font-medium text-blue-700 underline underline-offset-2">
                   PDF'e Çevir
                 </Link>{' '}
-                aracıyla dönüştürün. Ekran görüntülerini sürükleyip bırakabilir veya kopyalayıp buraya yapıştırabilirsiniz.
+                aracıyla dönüştürün.
               </div>
             </div>
             <Input ref={fileInputRef} type="file" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFileChange} className="hidden" />
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="text-sm text-slate-600">
+                Bilgisayardan belge seçmek için butonu kullanın. Ekran görüntüsü ekleyecekseniz aşağıdaki alana bırakın veya yapıştırın.
+              </div>
+              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                Dosya Seç
+              </Button>
+            </div>
             <div
-              role="button"
+              role="region"
               tabIndex={0}
               onDrop={handleFileDrop}
               onDragOver={(event) => {
@@ -489,23 +497,23 @@ export function ProductionOrderCreateForm({
               }}
               onDragLeave={() => setIsDraggingFiles(false)}
               onPaste={handleFilePaste}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={(event) => event.currentTarget.focus()}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
+                if (event.key === 'Enter') {
                   event.preventDefault();
-                  fileInputRef.current?.click();
+                  event.currentTarget.focus();
                 }
               }}
               className={[
-                'flex min-h-[124px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center outline-none transition-colors',
+                'flex min-h-[124px] cursor-default flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center outline-none transition-colors',
                 isDraggingFiles
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-slate-300 bg-slate-50 hover:border-slate-400'
               ].join(' ')}
             >
-              <div className="text-sm font-semibold text-slate-900">Dosyaları bırakın veya seçmek için tıklayın</div>
+              <div className="text-sm font-semibold text-slate-900">Dosyaları bu alana bırakın veya görsel yapıştırın</div>
               <div className="mt-2 max-w-sm text-xs leading-6 text-slate-500">
-                Desteklenen türler: PDF, PNG, JPG, WEBP. Kopyalanmış görsel varsa bu alana tıklayıp `Ctrl + V` / `Command + V` ile de ekleyebilirsiniz.
+                Desteklenen türler: PDF, PNG, JPG, WEBP. Bu alanı seçip `Ctrl + V` / `Command + V` ile kopyalanmış görseli doğrudan ekleyebilirsiniz.
               </div>
             </div>
             {files.length > 0 ? (

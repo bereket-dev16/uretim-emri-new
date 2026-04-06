@@ -111,3 +111,4 @@
 - PDF-only attachment politikasinda yalniz backend validation yetmez; file input `accept`, secim sonrasi UI filtreleme, yardimci metin ve storage MIME kisiti ayni anda daraltilmalidir.
 - Operasyon ekranlarinda ekran goruntusu ekleme ihtiyaci varsa dosya politikasi tamamen PDF'e kilitlenmemeli; PDF + yaygin gorsel tipleri birlikte kabul edilip Office dosyalari ayri bir converter aracina tasinmak daha dengeli bir cozumdur.
 - Clipboard paste ile gorsel ekleme isteniyorsa file input tek basina yeterli degildir; odaklanabilir dropzone, `clipboardData.items` okuma ve adsiz blob'lar icin anlamli fallback dosya adi uretimi birlikte gerekir.
+- Kullaniciya hem "tikla dosya sec" hem "paste/drop" ayni kutuda verilirse davranis belirsizlesir; dropzone sadece paste/drop icin tutulup dosya secme ayri bir butona ayrildiginda UX daha anlasilir olur.
