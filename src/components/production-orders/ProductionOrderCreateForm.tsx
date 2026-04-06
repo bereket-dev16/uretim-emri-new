@@ -313,65 +313,66 @@ export function ProductionOrderCreateForm({
 
   return (
     <>
-      <form className="space-y-6" onSubmit={handlePreview}>
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="space-y-2">
+      <form className="space-y-4" onSubmit={handlePreview}>
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-1">
             <Label htmlFor="orderDate">İş Emri Tarihi</Label>
             <Input id="orderDate" type="date" value={form.orderDate} onChange={(event) => setField('orderDate', event.target.value)} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="orderNo">İş Emri No</Label>
             <Input id="orderNo" inputMode="numeric" value={form.orderNo} onChange={(event) => setField('orderNo', event.target.value.replace(/\D/g, ''))} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="customerName">Müşteri Adı</Label>
             <Input id="customerName" value={form.customerName} onChange={(event) => setField('customerName', event.target.value)} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="orderQuantity">Sipariş Miktarı</Label>
             <Input id="orderQuantity" inputMode="numeric" value={form.orderQuantity} onChange={(event) => setField('orderQuantity', event.target.value.replace(/\D/g, ''))} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="deadlineDate">Termin Tarihi</Label>
             <Input id="deadlineDate" type="date" value={form.deadlineDate} onChange={(event) => setField('deadlineDate', event.target.value)} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="finalProductName">Son Ürün Adı</Label>
             <Input id="finalProductName" value={form.finalProductName} onChange={(event) => setField('finalProductName', event.target.value)} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="totalPackagingQuantity">Toplam Ambalaj Miktarı</Label>
             <Input id="totalPackagingQuantity" inputMode="numeric" value={form.totalPackagingQuantity} onChange={(event) => setField('totalPackagingQuantity', event.target.value.replace(/\D/g, ''))} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="color">Renk</Label>
             <Input id="color" value={form.color} onChange={(event) => setField('color', event.target.value)} />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="moldText">Kapsül/Tablet/Softjel Kalıbı</Label>
             <Input id="moldText" value={form.moldText} onChange={(event) => setField('moldText', event.target.value)} />
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <section className="grid gap-3 lg:grid-cols-2">
+          <div className="space-y-2 rounded-md border border-slate-300 bg-slate-50 p-3">
             <Label>Prospektüs</Label>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant={form.hasProspectus ? 'default' : 'outline'} onClick={() => setField('hasProspectus', true)}>
+              <Button type="button" size="sm" variant={form.hasProspectus ? 'default' : 'outline'} onClick={() => setField('hasProspectus', true)}>
                 Var
               </Button>
-              <Button type="button" variant={!form.hasProspectus ? 'default' : 'outline'} onClick={() => setField('hasProspectus', false)}>
+              <Button type="button" size="sm" variant={!form.hasProspectus ? 'default' : 'outline'} onClick={() => setField('hasProspectus', false)}>
                 Yok
               </Button>
             </div>
           </div>
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="space-y-2 rounded-md border border-slate-300 bg-slate-50 p-3">
             <Label>İhracat / İç Piyasa</Label>
             <div className="flex flex-wrap gap-2">
               {MARKET_SCOPE_VALUES.map((value) => (
                 <Button
                   key={value}
                   type="button"
+                  size="sm"
                   variant={form.marketScope === value ? 'default' : 'outline'}
                   onClick={() => setField('marketScope', value)}
                 >
@@ -380,13 +381,14 @@ export function ProductionOrderCreateForm({
               ))}
             </div>
           </div>
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="space-y-2 rounded-md border border-slate-300 bg-slate-50 p-3">
             <Label>Numune / Müşteri Talebi / Stok</Label>
             <div className="flex flex-wrap gap-2">
               {DEMAND_SOURCE_VALUES.map((value) => (
                 <Button
                   key={value}
                   type="button"
+                  size="sm"
                   variant={form.demandSource === value ? 'default' : 'outline'}
                   onClick={() => setField('demandSource', value)}
                 >
@@ -395,13 +397,14 @@ export function ProductionOrderCreateForm({
               ))}
             </div>
           </div>
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="space-y-2 rounded-md border border-slate-300 bg-slate-50 p-3">
             <Label>Ambalaj Türü</Label>
             <div className="flex flex-wrap gap-2">
               {PACKAGING_TYPE_VALUES.map((value) => (
                 <Button
                   key={value}
                   type="button"
+                  size="sm"
                   variant={form.packagingType === value ? 'default' : 'outline'}
                   onClick={() => setField('packagingType', value)}
                 >
@@ -412,7 +415,7 @@ export function ProductionOrderCreateForm({
           </div>
         </section>
 
-        <section className="space-y-2">
+        <section className="space-y-1">
           <Label htmlFor="noteText">Not</Label>
           <Textarea
             id="noteText"
@@ -422,11 +425,11 @@ export function ProductionOrderCreateForm({
           />
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 p-4">
-            <div className="mb-3">
+        <section className="grid gap-3 lg:grid-cols-3">
+          <div className="rounded-md border border-slate-300 bg-white p-3">
+            <div className="mb-2">
               <div className="text-sm font-semibold text-slate-950">Hammadde Hazırlama</div>
-              <div className="mt-1 text-sm text-slate-600">İlk pending görev bu birimde açılır.</div>
+              <div className="mt-1 text-xs leading-5 text-slate-600">İlk pending görev bu birimde açılır.</div>
             </div>
             <Select value={form.plannedRawUnitCode} onValueChange={(value) => setField('plannedRawUnitCode', value)}>
               <SelectTrigger>
@@ -442,10 +445,10 @@ export function ProductionOrderCreateForm({
             </Select>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-4">
-            <div className="mb-3">
+          <div className="rounded-md border border-slate-300 bg-white p-3">
+            <div className="mb-2">
               <div className="text-sm font-semibold text-slate-950">Makine Birimi</div>
-              <div className="mt-1 text-sm text-slate-600">Seçilirse emir oluşturulurken aynı anda ilk makine görevi de açılır.</div>
+              <div className="mt-1 text-xs leading-5 text-slate-600">Seçilirse emir oluşturulurken aynı anda ilk makine görevi de açılır.</div>
             </div>
             <Select
               value={form.plannedMachineUnitCode || NO_MACHINE_UNIT}
@@ -467,10 +470,10 @@ export function ProductionOrderCreateForm({
             </Select>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-4">
-            <div className="mb-3">
+          <div className="rounded-md border border-slate-300 bg-white p-3">
+            <div className="mb-2">
               <div className="text-sm font-semibold text-slate-950">Dosya Ekle</div>
-              <div className="mt-1 text-sm text-slate-600">
+              <div className="mt-1 text-xs leading-5 text-slate-600">
                 PDF veya görsel yükleyebilirsiniz. Word ve Excel dosyalarını önce{' '}
                 <Link href="/tools/pdf-convert" className="font-medium text-blue-700 underline underline-offset-2">
                   PDF'e Çevir
@@ -479,11 +482,11 @@ export function ProductionOrderCreateForm({
               </div>
             </div>
             <Input ref={fileInputRef} type="file" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFileChange} className="hidden" />
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-sm text-slate-600">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-2">
+              <div className="text-xs leading-5 text-slate-600">
                 Bilgisayardan belge seçmek için butonu kullanın. Ekran görüntüsü ekleyecekseniz aşağıdaki alana bırakın veya yapıştırın.
               </div>
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+              <Button type="button" size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
                 Dosya Seç
               </Button>
             </div>
@@ -505,23 +508,23 @@ export function ProductionOrderCreateForm({
                 }
               }}
               className={[
-                'flex min-h-[124px] cursor-default flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center outline-none transition-colors',
+                'flex min-h-[96px] cursor-default flex-col items-center justify-center rounded-md border border-dashed px-3 py-4 text-center outline-none transition-colors',
                 isDraggingFiles
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-slate-300 bg-slate-50 hover:border-slate-400'
               ].join(' ')}
             >
               <div className="text-sm font-semibold text-slate-900">Dosyaları bu alana bırakın veya görsel yapıştırın</div>
-              <div className="mt-2 max-w-sm text-xs leading-6 text-slate-500">
+              <div className="mt-1 max-w-sm text-[11px] leading-5 text-slate-500">
                 Desteklenen türler: PDF, PNG, JPG, WEBP. Bu alanı seçip `Ctrl + V` / `Command + V` ile kopyalanmış görseli doğrudan ekleyebilirsiniz.
               </div>
             </div>
             {files.length > 0 ? (
-              <div className="mt-3 space-y-2">
+              <div className="mt-2 space-y-2">
                 {files.map((file, index) => (
                   <div
                     key={`${file.name}-${file.size}-${file.lastModified}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+                    className="flex items-center justify-between gap-3 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-medium text-slate-900">{file.name}</div>
@@ -540,7 +543,7 @@ export function ProductionOrderCreateForm({
         </section>
 
         {errorMessage ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {errorMessage}
           </div>
         ) : null}
@@ -551,17 +554,17 @@ export function ProductionOrderCreateForm({
       </form>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Üretim Emri Önizleme</DialogTitle>
             <DialogDescription>Bilgileri kontrol edin. Onay sonrası emir oluşturulacak ve ek dosyalar yüklenecek.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-4">
+            <div className="grid gap-px rounded-md border border-slate-300 bg-slate-300 md:grid-cols-2 xl:grid-cols-3">
               {buildOrderMetaRows(previewOrder).map((row) => (
-                <div key={row.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">{row.label}</div>
+                <div key={row.label} className="bg-white px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">{row.label}</div>
                   <div className="mt-1 text-sm text-slate-900">{row.value}</div>
                 </div>
               ))}
@@ -569,8 +572,8 @@ export function ProductionOrderCreateForm({
 
             <OrderNotePanel order={previewOrder} />
 
-            <div className="space-y-3">
-              <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.05em] text-slate-600">Ek Dosyalar</h3>
               <AttachmentList order={previewOrder} canDownload={false} />
             </div>
           </div>

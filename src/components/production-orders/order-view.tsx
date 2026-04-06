@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 
 import {
@@ -16,6 +17,7 @@ import type {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const GROUP_ORDER: ProductionUnitGroup[] = ['HAMMADDE', 'MAKINE'];
+export type OrderRowTone = 'pending' | 'in_progress' | 'completed' | 'mixed' | 'neutral';
 
 export function formatDate(value: string): string {
   const date = new Date(value);
@@ -128,6 +130,104 @@ export function getOrderStateLabel(order: ProductionOrderListItemDTO): string {
   });
 
   return summary.join(' • ');
+}
+
+export function getOrderRowTone(order: ProductionOrderListItemDTO): OrderRowTone {
+  if (order.status === 'completed') {
+    return 'completed';
+  }
+
+  const statuses = getVisibleGroups(order)
+    .map((group) => getDisplayDispatchForGroup(order, group)?.status)
+    .filter((status): status is ProductionOrderDispatchDTO['status'] => Boolean(status));
+
+  if (statuses.length === 0) {
+    return 'neutral';
+  }
+
+  if (statuses.every((status) => status === 'completed')) {
+    return 'completed';
+  }
+
+  if (statuses.every((status) => status === 'pending')) {
+    return 'pending';
+  }
+
+  if (statuses.every((status) => status === 'in_progress')) {
+    return 'in_progress';
+  }
+
+  if (statuses.includes('in_progress')) {
+    return 'in_progress';
+  }
+
+  if (statuses.includes('pending')) {
+    return 'mixed';
+  }
+
+  return 'completed';
+}
+
+export function getRowToneClasses(tone: OrderRowTone): {
+  summaryRow: string;
+  stripeCell: string;
+  detailCell: string;
+  detailPanel: string;
+} {
+  switch (tone) {
+    case 'completed':
+      return {
+        summaryRow: 'bg-emerald-50',
+        stripeCell: 'border-l-4 border-emerald-500 pl-2',
+        detailCell: 'bg-emerald-50/70',
+        detailPanel: 'rounded-md bg-emerald-100/50 p-2.5'
+      };
+    case 'pending':
+      return {
+        summaryRow: 'bg-amber-50',
+        stripeCell: 'border-l-4 border-amber-500 pl-2',
+        detailCell: 'bg-amber-50/70',
+        detailPanel: 'rounded-md bg-amber-100/50 p-2.5'
+      };
+    case 'in_progress':
+      return {
+        summaryRow: 'bg-sky-50',
+        stripeCell: 'border-l-4 border-sky-500 pl-2',
+        detailCell: 'bg-sky-50/70',
+        detailPanel: 'rounded-md bg-sky-100/50 p-2.5'
+      };
+    case 'mixed':
+      return {
+        summaryRow: 'bg-white',
+        stripeCell: 'border-l-4 border-orange-500 pl-2',
+        detailCell: 'bg-slate-100/80',
+        detailPanel: 'rounded-md bg-slate-100 p-2.5'
+      };
+    default:
+      return {
+        summaryRow: 'bg-white',
+        stripeCell: 'border-l-4 border-slate-400 pl-2',
+        detailCell: 'bg-slate-100',
+        detailPanel: 'rounded-md bg-slate-100 p-2.5'
+      };
+  }
+}
+
+export function DetailSection({
+  title,
+  children
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-300 bg-white">
+      <div className="border-b border-slate-200 bg-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-600">
+        {title}
+      </div>
+      <div className="p-3">{children}</div>
+    </section>
+  );
 }
 
 export function hasGroupActivity(
@@ -251,22 +351,30 @@ export function OrderMetaGrid({ order }: { order: ProductionOrderListItemDTO }) 
   const rows = buildOrderMetaRows(order);
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 md:grid-cols-2 xl:grid-cols-3">
       {rows.map((row) => (
-        <div key={row.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">{row.label}</div>
-          <div className="mt-1 text-sm text-slate-900">{row.value}</div>
+        <div key={row.label} className="bg-white px-3 py-2">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">{row.label}</div>
+          <div className="mt-0.5 text-sm text-slate-900">{row.value}</div>
         </div>
       ))}
     </div>
   );
 }
 
-export function OrderNotePanel({ order }: { order: ProductionOrderListItemDTO }) {
+export function OrderNotePanel({
+  order,
+  showLabel = true
+}: {
+  order: ProductionOrderListItemDTO;
+  showLabel?: boolean;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-      <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">Operasyon Notu</div>
-      <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+    <div className={showLabel ? 'rounded-md border border-slate-300 bg-white px-3 py-2.5' : 'rounded-sm bg-slate-50 px-3 py-2.5'}>
+      {showLabel ? (
+        <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Operasyon Notu</div>
+      ) : null}
+      <div className={`${showLabel ? 'mt-1' : ''} whitespace-pre-wrap text-sm leading-5 text-slate-800`}>
         {order.noteText?.trim() ? order.noteText : 'Not girilmedi.'}
       </div>
     </div>
@@ -277,23 +385,38 @@ export function DispatchGroupOverview({ order }: { order: ProductionOrderListIte
   const visibleGroups = getVisibleGroups(order);
 
   return (
-    <div className={`grid gap-3 ${visibleGroups.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+    <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
       {visibleGroups.map((group) => {
         const openDispatch = getOpenDispatchForGroup(order, group);
         const lastDispatch = getLastDispatchForGroup(order, group);
         const displayDispatch = openDispatch ?? lastDispatch;
 
         return (
-          <div key={group} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-950">{PRODUCTION_UNIT_GROUP_LABELS[group]}</div>
-                <div className="mt-1 text-sm text-slate-600">
-                  {displayDispatch
-                    ? getProductionUnitLabel(displayDispatch.unitCode, displayDispatch.unitName)
-                    : 'Henüz bu grup için işlem başlatılmadı.'}
-                </div>
+          <div
+            key={group}
+            className="grid gap-2 border-b border-slate-200 px-3 py-2.5 last:border-b-0 lg:grid-cols-[140px_minmax(0,1fr)_auto]"
+          >
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">
+                {PRODUCTION_UNIT_GROUP_LABELS[group]}
               </div>
+              <div className="text-sm text-slate-900">
+                {displayDispatch
+                  ? getProductionUnitLabel(displayDispatch.unitCode, displayDispatch.unitName)
+                  : 'Henüz başlatılmadı.'}
+              </div>
+            </div>
+            <div className="text-sm text-slate-600">
+              {displayDispatch ? (
+                <div className="grid gap-1 sm:grid-cols-2">
+                  <div>Gönderim: {formatDateTime(displayDispatch.dispatchedAt)}</div>
+                  <div>Bitiş: {formatDateTime(displayDispatch.completedAt)}</div>
+                </div>
+              ) : (
+                'Bu grup için henüz işlem açılmadı.'
+              )}
+            </div>
+            <div className="lg:justify-self-end">
               <span
                 className="status-chip"
                 data-status={getStatusTone(displayDispatch?.status ?? (order.status === 'completed' ? 'finished' : 'pending'))}
@@ -305,16 +428,6 @@ export function DispatchGroupOverview({ order }: { order: ProductionOrderListIte
                     : 'Hazır'}
               </span>
             </div>
-            {displayDispatch ? (
-              <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
-                <div>
-                  <span className="font-medium text-slate-700">Gönderim:</span> {formatDateTime(displayDispatch.dispatchedAt)}
-                </div>
-                <div>
-                  <span className="font-medium text-slate-700">Bitiş:</span> {formatDateTime(displayDispatch.completedAt)}
-                </div>
-              </div>
-            ) : null}
           </div>
         );
       })}
@@ -328,15 +441,15 @@ export function AttachmentListFallback({ order }: { order: ProductionOrderListIt
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {order.attachments.map((attachment) => (
         <div
           key={attachment.id}
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
         >
           <div>
             <div className="text-sm font-medium text-slate-900">{attachment.originalFilename}</div>
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-0.5 text-xs text-slate-500">
               {Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB • {attachment.mimeType} • {formatDateTime(attachment.createdAt)}
             </div>
           </div>
@@ -367,7 +480,7 @@ export function DispatchHistoryTable({ order }: { order: ProductionOrderListItem
           <TableHead>Gönderildi</TableHead>
           <TableHead>Kabul</TableHead>
           <TableHead>Bitiş</TableHead>
-          <TableHead>Son Sipariş Miktarı</TableHead>
+          <TableHead>Son Sipariş</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

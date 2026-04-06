@@ -75,6 +75,33 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
   - `docker compose logs web --tail 50`
   - `docker compose logs converter --tail 50`
 
+## Gercekci Benchmark
+Amac, paralel spam yerine rol-bazli ve kuyruklu oturumlarla cekirdek uretim emri akisina yuk bindirmektir.
+
+### 1. Benchmark kullanicilarini ve backlog verisini hazirlayin
+- `corepack pnpm bench:prepare -- --prefix BENCH --totalUsers 30 --backlogOrders 24`
+- Cikti dosyasi varsayilan olarak `scripts/benchmark-user-sessions.sample.json` olur.
+- Script tum birimler icin benchmark kullanicilarini idempotent sekilde olusturur/gunceller ve uzun bekleyen backlog emirleri ekler.
+
+### 2. Windows Docker ortaminda benchmark'i kosun
+- `corepack pnpm bench:flow -- --usersFile scripts/benchmark-user-sessions.sample.json --sessions 30 --durationSec 300 --rampUpSec 20 --baseUrl http://192.168.X.X:3000`
+- `baseUrl` olarak Windows Docker uygulamasinin LAN adresini verin.
+- Runner su metrikleri raporlar:
+  - toplam istek / hata sayisi
+  - endpoint bazli `P50 / P95 / P99`
+  - `create`, `dispatch`, `accept`, `complete`, `finish` basari oranlari
+  - backlog altinda ilk kabul ve is adimi gecikmeleri
+
+### 3. Test verisini temizleyin
+- `corepack pnpm bench:cleanup -- --prefix BENCH`
+- veya
+- `corepack pnpm bench:cleanup -- --usersFile scripts/benchmark-user-sessions.sample.json`
+
+### Senaryo modeli
+- `production_manager` kullanicilari belli araliklarla yeni emir acar, uygun oldugunda sonraki sevki yapar ve tum gruplar kapaninca emri bitirir.
+- `raw_preparation` ve `machine_operator` kullanicilari kendi ekranlarini poll eder, kimi emri hemen kabul eder, kimi kontrollu bekletir ve is bitince `complete` aksiyonunu yollar.
+- Backlog verisi bilerek beklemede birakildigi icin liste buyumesi altinda sorgu davranisi da olculur.
+
 ## Doğrulama
 - `pnpm typecheck`
 - `pnpm test`

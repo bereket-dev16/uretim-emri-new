@@ -17,7 +17,7 @@ export default async function ProductionOrderCreatePage() {
   ]);
 
   return (
-    <div className="page-shell space-y-6">
+    <div className="page-shell space-y-4">
       <PageIntro
         badge="Üretim"
         title="Üretim Emri Oluştur"

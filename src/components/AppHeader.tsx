@@ -42,35 +42,35 @@ export function AppHeader({ session }: AppHeaderProps) {
       .sort((left, right) => right.length - left.length)[0] ?? null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-      <div className="flex flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4">
-          <Link href={homePath} className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+    <header className="sticky top-0 z-40 border-b border-slate-300 bg-white">
+      <div className="flex flex-col gap-2 px-3 py-2 sm:px-4">
+        <div className="flex items-center justify-between gap-3">
+          <Link href={homePath} className="flex min-w-0 items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-slate-50">
               <Image
                 src="/bereket-logo.png"
                 alt="Bereket Logo"
-                width={34}
-                height={34}
-                className="h-7 w-auto object-contain"
+                width={28}
+                height={28}
+                className="h-6 w-auto object-contain"
                 priority
               />
             </div>
             <div className="min-w-0">
-              <div className="truncate text-base font-semibold text-slate-950">Üretim Emri Sistemi</div>
-              <div className="truncate text-xs text-slate-500">
+              <div className="truncate text-sm font-semibold text-slate-950">Üretim Emri Sistemi</div>
+              <div className="truncate text-[11px] text-slate-500">
                 {ROLE_LABELS[session.role]}
                 {session.hatUnitCode ? ` • ${session.hatUnitCode}` : ''}
               </div>
             </div>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isAdmin ? (
               <Link
                 href="/admin/users"
                 className={cn(
-                  'hidden rounded-lg border px-3 py-2 text-sm font-medium sm:inline-flex',
+                  'hidden rounded-md border px-2.5 py-1.5 text-xs font-medium sm:inline-flex',
                   activeHref === '/admin/users'
                     ? 'border-blue-600 bg-blue-50 text-blue-700'
                     : 'border-slate-200 bg-white text-slate-700'
@@ -83,13 +83,13 @@ export function AppHeader({ session }: AppHeaderProps) {
           </div>
         </div>
 
-        <nav className="flex flex-wrap items-center gap-2">
+        <nav className="flex flex-wrap items-center gap-1.5">
           {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                'rounded-lg border px-3 py-2 text-sm font-medium',
+                'rounded-md border px-2.5 py-1.5 text-xs font-medium',
                 activeHref === item.href
                   ? 'border-blue-600 bg-blue-50 text-blue-700'
                   : 'border-slate-200 bg-white text-slate-700'
@@ -102,7 +102,7 @@ export function AppHeader({ session }: AppHeaderProps) {
             <Link
               href="/admin/users"
               className={cn(
-                'rounded-lg border px-3 py-2 text-sm font-medium sm:hidden',
+                'rounded-md border px-2.5 py-1.5 text-xs font-medium sm:hidden',
                 activeHref === '/admin/users'
                   ? 'border-blue-600 bg-blue-50 text-blue-700'
                   : 'border-slate-200 bg-white text-slate-700'

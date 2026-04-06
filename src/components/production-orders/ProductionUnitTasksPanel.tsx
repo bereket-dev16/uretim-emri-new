@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import type { ProductionOrderListItemDTO } from '@/shared/types/domain';
@@ -19,13 +19,15 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
+  DetailSection,
   DispatchGroupOverview,
   DispatchHistoryTable,
+  getRowToneClasses,
   OrderMetaGrid,
   OrderNotePanel,
-  OrderSummaryLine
 } from './order-view';
 import { AttachmentList } from './AttachmentList';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ProductionUnitTasksPanelProps {
   initialItems: ProductionOrderListItemDTO[];
@@ -166,7 +168,7 @@ export function ProductionUnitTasksPanel({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 px-5 py-10 text-center text-sm text-slate-500">
+      <div className="rounded-md border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
         Çalışan görev bulunmuyor.
       </div>
     );
@@ -175,64 +177,87 @@ export function ProductionUnitTasksPanel({
   return (
     <div className="space-y-4">
       {statusMessage ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           {statusMessage}
         </div>
       ) : null}
       {errorMessage ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {errorMessage}
         </div>
       ) : null}
 
-      {rows.map((order) => {
-        const isExpanded = expandedId === order.id;
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>İş Emri</TableHead>
+            <TableHead>Müşteri</TableHead>
+            <TableHead>Son Ürün</TableHead>
+            <TableHead>Termin</TableHead>
+            <TableHead>Durum</TableHead>
+            <TableHead className="text-right">Aksiyon</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((order) => {
+            const isExpanded = expandedId === order.id;
+            const toneClasses = getRowToneClasses('in_progress');
 
-        return (
-          <div key={order.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <OrderSummaryLine order={order} />
-            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-              <div className="text-sm text-slate-600">Bu emir üzerinde çalışma devam ediyor. Tamamlandığında bildirmeniz gerekir.</div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : order.id)}>
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {isExpanded ? 'Detayı Gizle' : 'Detaylı Göster'}
-                </Button>
-                <Button type="button" size="sm" onClick={() => setCompleteTarget(order)}>
-                  Bitir
-                </Button>
-              </div>
-            </div>
+            return (
+              <Fragment key={order.id}>
+                <TableRow className={toneClasses.summaryRow}>
+                  <TableCell className="font-medium text-slate-900">#{order.orderNo}</TableCell>
+                  <TableCell>{order.customerName}</TableCell>
+                  <TableCell>{order.finalProductName}</TableCell>
+                  <TableCell>{new Date(order.deadlineDate).toLocaleDateString('tr-TR')}</TableCell>
+                  <TableCell>
+                    <span className="status-chip" data-status="in_progress">
+                      Çalışıyor
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : order.id)}>
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        {isExpanded ? 'Kapat' : 'Detay'}
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => setCompleteTarget(order)}>
+                        Bitir
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
 
-            {isExpanded ? (
-              <div className="space-y-6 border-t border-slate-200 px-5 py-5">
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Form Bilgileri</h3>
-                  <OrderMetaGrid order={order} />
-                </section>
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Operasyon Notu</h3>
-                  <OrderNotePanel order={order} />
-                </section>
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Mevcut Süreç</h3>
-                  <DispatchGroupOverview order={order} />
-                </section>
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Sevk Geçmişi</h3>
-                  <DispatchHistoryTable order={order} />
-                </section>
-                {canViewAttachments ? (
-                  <section className="space-y-3">
-                    <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>
-                    <AttachmentList order={order} canDownload={canDownloadAttachments} />
-                  </section>
+                {isExpanded ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className={`${toneClasses.detailCell} px-3 py-3`}>
+                      <div className={`space-y-3 ${toneClasses.detailPanel}`}>
+                        <DetailSection title="Form Bilgileri">
+                          <OrderMetaGrid order={order} />
+                        </DetailSection>
+                        <DetailSection title="Operasyon Notu">
+                          <OrderNotePanel order={order} showLabel={false} />
+                        </DetailSection>
+                        <DetailSection title="Mevcut Süreç">
+                          <DispatchGroupOverview order={order} />
+                        </DetailSection>
+                        <DetailSection title="Sevk Geçmişi">
+                          <DispatchHistoryTable order={order} />
+                        </DetailSection>
+                        {canViewAttachments ? (
+                          <DetailSection title="Ek Dosyalar">
+                            <AttachmentList order={order} canDownload={canDownloadAttachments} />
+                          </DetailSection>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ) : null}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+              </Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
 
       <Dialog open={Boolean(completeTarget)} onOpenChange={(open) => (!open ? setCompleteTarget(null) : undefined)}>
         <DialogContent>

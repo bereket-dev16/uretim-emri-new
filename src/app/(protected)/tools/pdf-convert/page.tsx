@@ -12,7 +12,7 @@ export default async function PdfConvertPage() {
   });
 
   return (
-    <div className="page-shell space-y-6">
+    <div className="page-shell space-y-4">
       <PageIntro
         badge="Araç"
         title="Belgeyi PDF'e Çevir"

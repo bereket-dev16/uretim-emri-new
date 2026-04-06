@@ -1,19 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import {
   availableDispatchTargets,
+  DetailSection,
   DispatchGroupOverview,
   DispatchHistoryTable,
   formatDate,
+  getDisplayDispatchForGroup,
+  getOrderStateLabel,
+  getOrderRowTone,
+  getRowToneClasses,
   getVisibleGroups,
   hasAnyOpenDispatch,
   hasOpenDispatchForGroup,
   OrderMetaGrid,
   OrderNotePanel,
-  OrderSummaryLine,
   suggestedDispatchUnit
 } from './order-view';
 import { AttachmentList } from './AttachmentList';
@@ -31,6 +35,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type {
   ProductionOrderListItemDTO,
   ProductionUnitDTO,
@@ -251,7 +256,7 @@ export function ProductionOrderCardList({
 
   if (sortedItems.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 px-5 py-10 text-center text-sm text-slate-500">
+      <div className="rounded-md border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
         Bu listede gösterilecek üretim emri bulunmuyor.
       </div>
     );
@@ -260,142 +265,180 @@ export function ProductionOrderCardList({
   return (
     <div className="space-y-4">
       {statusMessage ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           {statusMessage}
         </div>
       ) : null}
       {errorMessage ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {errorMessage}
         </div>
       ) : null}
 
-      {sortedItems.map((order) => {
-        const isExpanded = expandedId === order.id;
-        const orderHasOpenDispatch = hasAnyOpenDispatch(order);
-        const visibleGroups = getVisibleGroups(order);
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>İş Emri</TableHead>
+            <TableHead>Müşteri</TableHead>
+            <TableHead>Son Ürün</TableHead>
+            <TableHead>Termin</TableHead>
+            <TableHead>Hammadde</TableHead>
+            <TableHead>Makine</TableHead>
+            <TableHead>Genel</TableHead>
+            <TableHead className="text-right">Aksiyon</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedItems.map((order) => {
+            const isExpanded = expandedId === order.id;
+            const orderHasOpenDispatch = hasAnyOpenDispatch(order);
+            const visibleGroups = getVisibleGroups(order);
+            const toneClasses = getRowToneClasses(getOrderRowTone(order));
+            const rawDispatch = getDisplayDispatchForGroup(order, 'HAMMADDE');
+            const machineDispatch = visibleGroups.includes('MAKINE')
+              ? getDisplayDispatchForGroup(order, 'MAKINE')
+              : null;
 
-        return (
-          <div key={order.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <OrderSummaryLine order={order} />
-
-            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-              <div className="text-sm text-slate-600">
-                {scope === 'active'
-                  ? orderHasOpenDispatch
-                    ? 'Hammadde ve makine süreçlerini grup bazlı izleyin, yalnız boşta olan gruba yeni sevk açın.'
-                    : 'İki grupta da açık görev yok. Yeni adım göndermeye veya emri bitirmeye hazır.'
-                  : `Tamamlanma tarihi: ${formatDate(order.updatedAt)}`}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : order.id)}>
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {isExpanded ? 'Detayı Gizle' : 'Detaylı Göster'}
-                </Button>
-              </div>
-            </div>
-
-            {isExpanded ? (
-              <div className="space-y-6 border-t border-slate-200 px-5 py-5">
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Form Bilgileri</h3>
-                  <OrderMetaGrid order={order} />
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Operasyon Notu</h3>
-                  <OrderNotePanel order={order} />
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Mevcut Süreç</h3>
-                  <DispatchGroupOverview order={order} />
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>
-                  <AttachmentList order={order} canDownload />
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Sevk Geçmişi</h3>
-                  <DispatchHistoryTable order={order} />
-                </section>
-
-                {scope === 'active' ? (
-                  <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            return (
+              <Fragment key={order.id}>
+                <TableRow className={toneClasses.summaryRow}>
+                  <TableCell className={`${toneClasses.stripeCell} font-medium text-slate-900`}>#{order.orderNo}</TableCell>
+                  <TableCell>{order.customerName}</TableCell>
+                  <TableCell>{order.finalProductName}</TableCell>
+                  <TableCell>{formatDate(order.deadlineDate)}</TableCell>
+                  <TableCell>
                     <div className="space-y-1">
-                      <h3 className="text-base font-semibold text-slate-950">Yönetim İşlemleri</h3>
-                      <p className="text-sm text-slate-600">
-                        Her grup aynı anda en fazla bir açık görev taşıyabilir. Bir grup boşta ise o grup için yeni sevk açabilir, iki grup da boşta ise emri bitirebilirsiniz.
-                      </p>
+                      <div>{rawDispatch ? getProductionUnitLabel(rawDispatch.unitCode, rawDispatch.unitName) : '-'}</div>
+                      <span className="status-chip" data-status={rawDispatch?.status ?? 'finished'}>
+                        {rawDispatch ? rawDispatch.status === 'in_progress' ? 'Çalışıyor' : rawDispatch.status === 'completed' ? 'Tamamlandı' : 'Bekliyor' : '-'}
+                      </span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {machineDispatch ? (
+                      <div className="space-y-1">
+                        <div>{getProductionUnitLabel(machineDispatch.unitCode, machineDispatch.unitName)}</div>
+                        <span className="status-chip" data-status={machineDispatch.status}>
+                          {machineDispatch.status === 'in_progress' ? 'Çalışıyor' : machineDispatch.status === 'completed' ? 'Tamamlandı' : 'Bekliyor'}
+                        </span>
+                      </div>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
+                  <TableCell>{getOrderStateLabel(order)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : order.id)}>
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      {isExpanded ? 'Kapat' : 'Detay'}
+                    </Button>
+                  </TableCell>
+                </TableRow>
 
-                    <div className={`grid gap-4 ${visibleGroups.length > 1 ? 'xl:grid-cols-2' : ''}`}>
-                      {visibleGroups.map((group) => {
-                        const groupTargets = availableDispatchTargets(order, productionUnits, group);
-                        const groupHasOpenDispatch = hasOpenDispatchForGroup(order, group);
-                        const key = selectionKey(order.id, group);
+                {isExpanded ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className={`${toneClasses.detailCell} px-3 py-3`}>
+                      <div className={`space-y-3 ${toneClasses.detailPanel}`}>
+                        <DetailSection title="Form Bilgileri">
+                          <OrderMetaGrid order={order} />
+                        </DetailSection>
 
-                        return (
-                          <div key={group} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-                            <div>
-                              <div className="text-sm font-semibold text-slate-950">
-                                {PRODUCTION_UNIT_GROUP_LABELS[group]} grubu
-                              </div>
-                              <div className="mt-1 text-sm text-slate-600">
-                                {groupHasOpenDispatch
-                                  ? 'Bu grupta açık görev var. Yeni sevk açılamaz.'
-                                  : 'Bu grupta yeni sevk açabilirsiniz.'}
-                              </div>
+                        <DetailSection title="Operasyon Notu">
+                          <OrderNotePanel order={order} showLabel={false} />
+                        </DetailSection>
+
+                        <DetailSection title="Mevcut Süreç">
+                          <DispatchGroupOverview order={order} />
+                        </DetailSection>
+
+                        <DetailSection title="Ek Dosyalar">
+                          <AttachmentList order={order} canDownload />
+                        </DetailSection>
+
+                        <DetailSection title="Sevk Geçmişi">
+                          <DispatchHistoryTable order={order} />
+                        </DetailSection>
+
+                        {scope === 'active' ? (
+                          <DetailSection title="Yönetim İşlemleri">
+                            <div className="space-y-3">
+                            <div className="space-y-2">
+                              {visibleGroups.map((group) => {
+                                const groupTargets = availableDispatchTargets(order, productionUnits, group);
+                                const groupHasOpenDispatch = hasOpenDispatchForGroup(order, group);
+                                const key = selectionKey(order.id, group);
+                                const currentDispatch = getDisplayDispatchForGroup(order, group);
+
+                                return (
+                                  <div
+                                    key={group}
+                                    className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 lg:grid-cols-[150px_minmax(0,1fr)_220px_auto] lg:items-center"
+                                  >
+                                    <div>
+                                      <div className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">
+                                        {PRODUCTION_UNIT_GROUP_LABELS[group]}
+                                      </div>
+                                      <div className="mt-1 text-sm text-slate-900">
+                                        {currentDispatch
+                                          ? getProductionUnitLabel(currentDispatch.unitCode, currentDispatch.unitName)
+                                          : 'Henüz işlem yok'}
+                                      </div>
+                                    </div>
+                                    <div className="text-sm text-slate-600">
+                                      {groupHasOpenDispatch
+                                        ? 'Bu grupta açık görev var, yeni sevk açılamaz.'
+                                        : 'Bu grup boşta. İsterseniz sonraki birime gönderin.'}
+                                    </div>
+                                    <Select
+                                      value={dispatchSelections[key] ?? ''}
+                                      onValueChange={(value) =>
+                                        setDispatchSelections((current) => ({
+                                          ...current,
+                                          [key]: value
+                                        }))
+                                      }
+                                      disabled={groupHasOpenDispatch}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Birim seçin" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {groupTargets.map((unit) => (
+                                          <SelectItem key={unit.code} value={unit.code} disabled={unit.disabled}>
+                                            {unit.name} {unit.disabled ? '(kullanıldı)' : ''}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      onClick={() => setDispatchTarget({ order, group })}
+                                      disabled={groupHasOpenDispatch || !dispatchSelections[key]}
+                                    >
+                                      Gönder
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                             </div>
-
-                            <Select
-                              value={dispatchSelections[key] ?? ''}
-                              onValueChange={(value) =>
-                                setDispatchSelections((current) => ({
-                                  ...current,
-                                  [key]: value
-                                }))
-                              }
-                              disabled={groupHasOpenDispatch}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Birim seçin" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {groupTargets.map((unit) => (
-                                  <SelectItem key={unit.code} value={unit.code} disabled={unit.disabled}>
-                                    {unit.name} {unit.disabled ? '(kullanıldı)' : ''}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-
-                            <Button
-                              type="button"
-                              onClick={() => setDispatchTarget({ order, group })}
-                              disabled={groupHasOpenDispatch || !dispatchSelections[key]}
-                            >
-                              Gönder
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button type="button" variant="outline" onClick={() => setFinishTarget(order)} disabled={orderHasOpenDispatch}>
-                        Emri Bitir
-                      </Button>
-                    </div>
-                  </section>
+                            <div className="flex justify-end">
+                              <Button type="button" variant="outline" size="sm" onClick={() => setFinishTarget(order)} disabled={orderHasOpenDispatch}>
+                                Emri Bitir
+                              </Button>
+                            </div>
+                            </div>
+                          </DetailSection>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ) : null}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+              </Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
 
       <Dialog open={Boolean(dispatchTarget)} onOpenChange={(open) => (!open ? setDispatchTarget(null) : undefined)}>
         <DialogContent>

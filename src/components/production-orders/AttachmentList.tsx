@@ -105,7 +105,7 @@ function AttachmentPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{attachment?.originalFilename ?? 'Ek Dosya'}</DialogTitle>
           <DialogDescription>
@@ -115,25 +115,25 @@ function AttachmentPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-[420px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+        <div className="min-h-[360px] overflow-hidden rounded-md border border-slate-300 bg-slate-50">
           {status === 'loading' ? (
-            <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500">
+            <div className="flex min-h-[360px] items-center justify-center text-sm text-slate-500">
               Önizleme hazırlanıyor...
             </div>
           ) : status === 'error' || !blobUrl ? (
-            <div className="flex min-h-[420px] items-center justify-center px-6 text-center text-sm text-slate-500">
+            <div className="flex min-h-[360px] items-center justify-center px-6 text-center text-sm text-slate-500">
               Önizleme açılamadı. Dosyayı indirerek görüntüleyebilirsiniz.
             </div>
           ) : attachment?.mimeType.startsWith('image/') ? (
-            <div className="flex min-h-[420px] items-center justify-center bg-white p-6">
+            <div className="flex min-h-[360px] items-center justify-center bg-white p-4">
               <img
                 src={blobUrl}
                 alt={attachment.originalFilename}
-                className="max-h-[70vh] max-w-full rounded-lg object-contain"
+                className="max-h-[65vh] max-w-full rounded-md object-contain"
               />
             </div>
           ) : (
-            <iframe title={attachment?.originalFilename ?? 'PDF'} src={blobUrl} className="h-[70vh] w-full bg-white" />
+            <iframe title={attachment?.originalFilename ?? 'PDF'} src={blobUrl} className="h-[65vh] w-full bg-white" />
           )}
         </div>
 
@@ -171,7 +171,7 @@ export function AttachmentList({
         {order.attachments.map((attachment) => (
           <div
             key={attachment.id}
-            className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
               <div className="text-sm font-medium text-slate-900">{attachment.originalFilename}</div>

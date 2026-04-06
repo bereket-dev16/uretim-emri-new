@@ -763,3 +763,36 @@
 - Attachment preview dialogu yeniden genisletildi; PDF'ler `iframe`, gorseller ise dogrudan buyuk onizleme ile aciliyor. Word/Excel ise ayrik `PDF'e Cevir` aracinda kalmaya devam ediyor.
 - Create sayfasi aciklamalari ve README ek dosya politikasini `PDF + gorsel`, Office dosyalari icin ayri converter araci olarak guncellendi.
 - Dogrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.
+
+## Iteration: PLC Friendly Classic Dashboard Simplification
+### Plan
+- [x] Global UI tokenlarini ve ortak primitive'leri orta-siki klasik dashboard yogunluguna cekmek
+- [x] Header, page intro ve dashboard quick action alanlarini daha az dikey alan kaplayacak sekilde sadeletirmek
+- [x] Aktif/biten/gelen/calisan emir ekranlarini kart listeden tablo ana gorunume tasimak
+- [x] Emir detay, not, dispatch ve attachment yuzeylerini kompakt operasyon paneli diline cekmek
+- [x] Create formu ve preview modalini daha siki form-tablosu hibrit yapida yeniden olceklendirmek
+- [x] `typecheck`, `test`, `build` ile davranisi tekrar dogrulamak
+
+### Review
+- `globals.css` ve ortak `Button/Input/Select/Table/Dialog/Card/Textarea` primitive'leri daha kucuk radius, daha dusuk padding ve minimum golge ile yeniden olceklendirildi; uygulamanin geneline daha klasik ve daha az bosluklu bir dil tasindi.
+- Header, page intro ve dashboard aksiyonlari buyuk panel hissinden cikarildi; toolbar benzeri daha kisa bir ust yapi ve daha kompakt ozet kutulari kullaniliyor.
+- `ProductionOrderCardList`, `ProductionUnitIncomingPanel` ve `ProductionUnitTasksPanel` ana akislari kart listesinden tablo temelli ana gorunume tasindi; detaylar satir altinda acilarak ayni ekranda daha fazla kayit gosterebilen bir operasyon duzeni kuruldu.
+- `OrderMetaGrid`, `OrderNotePanel`, `DispatchGroupOverview`, `DispatchHistoryTable` ve `AttachmentList` daha siki borderli satir/tablolu bloklara cekildi; buyuk kutular ve gereksiz bosluklar azaltildi.
+- `ProductionOrderCreateForm` ana alanlari, secim gruplari, sevk bloklari, dosya bolgesi ve preview modali daha kompakt hale getirildi; paste/drop alani korunurken kutu yukseklikleri ve yardimci metin yogunlugu dusuruldu.
+- Dogrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.
+
+## Iteration: Realistic Concurrent Flow Benchmark Tooling
+### Plan
+- [x] Prefixli benchmark kullanicilarini ve backlog emirlerini idempotent hazirlayacak scriptleri eklemek
+- [x] Kullanici-bazli staggered manager/operator oturumlari ile cekirdek workflow'u olcecek benchmark runner'i yazmak
+- [x] Benchmark verisini temizleyecek ayrik cleanup scripti eklemek
+- [x] Package komutlari ve README uzerinden Windows Docker kullanim adimlarini dokumante etmek
+- [x] Script sentaksini ve repo genelini `typecheck`, `test`, `build` ile dogrulamak
+
+### Review
+- `scripts/prepare-benchmark-users.mjs` eklendi; benchmark prefix'i ile tum birimler icin `production_manager`, `raw_preparation` ve `machine_operator` kullanicilarini idempotent sekilde olusturuyor/guncelliyor, ayni zamanda beklemede backlog yaratmak icin farkli modlarda benchmark emirleri aciyor ve `scripts/benchmark-user-sessions.sample.json` dosyasini uretiyor.
+- `scripts/cleanup-benchmark-data.mjs` eklendi; yalniz benchmark prefix'li kullanicilari, session kayitlarini ve benchmark marker tasiyan emirleri temizliyor.
+- `scripts/benchmark-production-flow.mjs` eklendi; 30'a kadar role-aware oturumu staggered ramp-up ile calistiriyor, manager tarafinda create/dispatch/finish, operator tarafinda incoming/accept/tasks/complete akislarini gercekci gecikmelerle yurutuyor ve endpoint bazli P50/P95/P99 ile workflow gecikmelerini raporluyor.
+- `scripts/benchmark-lib.mjs` ile ortak arguman parse, env yukleme, percentile, cookie parse ve JSON dosya yardimcilari toplandi; `pnpm ... -- ...` cagrilarinda gelen ayirac token'ini yoksayacak sekilde parse davranisi sertlestirildi.
+- `package.json` icine `bench:prepare`, `bench:cleanup` ve `bench:flow` komutlari eklendi; `README.md` uzerinden Windows Docker adresi ile benchmark hazirlama, kosma ve temizleme adimlari net komutlarla belgelendi.
+- Dogrulama: `node --check scripts/benchmark-lib.mjs`, `node --check scripts/prepare-benchmark-users.mjs`, `node --check scripts/cleanup-benchmark-data.mjs`, `node --check scripts/benchmark-production-flow.mjs`, `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.

@@ -38,7 +38,7 @@ export default async function ProductionOrdersListPage({
   const totalPages = Math.max(1, Math.ceil(payload.total / pageSize));
 
   return (
-    <div className="page-shell space-y-6">
+    <div className="page-shell space-y-4">
       <PageIntro
         badge="Üretim"
         title="Devam Eden Emirler"
