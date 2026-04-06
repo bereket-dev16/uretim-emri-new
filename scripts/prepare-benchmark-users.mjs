@@ -96,13 +96,14 @@ function buildUserPlans({ prefix, password, totalUsers, units }) {
   ];
 
   for (const unit of orderedBaseUnits) {
+    const unitGroup = unit.unitGroup ?? unit.unit_group;
     unitCounters.set(unit.code, 1);
     users.push({
-      username: `${usernamePrefix}_${unit.unitGroup === 'HAMMADDE' ? 'raw' : 'machine'}_${slugForUnit(unit.code)}_01`,
+      username: `${usernamePrefix}_${unitGroup === 'HAMMADDE' ? 'raw' : 'machine'}_${slugForUnit(unit.code)}_01`,
       password,
-      role: unit.unitGroup === 'HAMMADDE' ? 'raw_preparation' : 'machine_operator',
+      role: unitGroup === 'HAMMADDE' ? 'raw_preparation' : 'machine_operator',
       hatUnitCode: unit.code,
-      unitGroup: unit.unitGroup,
+      unitGroup,
       kind: 'operator',
       priority
     });
@@ -120,13 +121,14 @@ function buildUserPlans({ prefix, password, totalUsers, units }) {
     }
 
     const nextCount = (unitCounters.get(unit.code) ?? 1) + 1;
+    const unitGroup = unit.unitGroup ?? unit.unit_group;
     unitCounters.set(unit.code, nextCount);
     users.push({
-      username: `${usernamePrefix}_${unit.unitGroup === 'HAMMADDE' ? 'raw' : 'machine'}_${slugForUnit(unit.code)}_${String(nextCount).padStart(2, '0')}`,
+      username: `${usernamePrefix}_${unitGroup === 'HAMMADDE' ? 'raw' : 'machine'}_${slugForUnit(unit.code)}_${String(nextCount).padStart(2, '0')}`,
       password,
-      role: unit.unitGroup === 'HAMMADDE' ? 'raw_preparation' : 'machine_operator',
+      role: unitGroup === 'HAMMADDE' ? 'raw_preparation' : 'machine_operator',
       hatUnitCode: unit.code,
-      unitGroup: unit.unitGroup,
+      unitGroup,
       kind: 'operator',
       priority
     });
@@ -454,7 +456,7 @@ async function main() {
   try {
     const unitsResult = await client.query(
       `
-        SELECT code, name, unit_group, is_active
+        SELECT code, name, unit_group AS "unitGroup", is_active AS "isActive"
         FROM production_units
         WHERE is_active = TRUE
         ORDER BY unit_group ASC, name ASC

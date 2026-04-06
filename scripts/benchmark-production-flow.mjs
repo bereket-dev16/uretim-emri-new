@@ -325,7 +325,9 @@ class BenchClient {
       };
     } catch (error) {
       const durationMs = performance.now() - startedAt;
-      const message = error instanceof Error ? error.message : 'request-failed';
+      const message = error instanceof Error
+        ? [error.message, error.cause instanceof Error ? error.cause.message : null].filter(Boolean).join(' | ')
+        : 'request-failed';
 
       recordRequest(this.metrics, {
         label,

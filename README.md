@@ -84,8 +84,10 @@ Amac, paralel spam yerine rol-bazli ve kuyruklu oturumlarla cekirdek uretim emri
 - Script tum birimler icin benchmark kullanicilarini idempotent sekilde olusturur/gunceller ve uzun bekleyen backlog emirleri ekler.
 
 ### 2. Windows Docker ortaminda benchmark'i kosun
-- `corepack pnpm bench:flow -- --usersFile scripts/benchmark-user-sessions.sample.json --sessions 30 --durationSec 300 --rampUpSec 20 --baseUrl http://192.168.X.X:3000`
-- `baseUrl` olarak Windows Docker uygulamasinin LAN adresini verin.
+- Windows'ta `corepack` yoksa benchmark komutlarini `web` container'i icinden kosun:
+  - `docker compose exec web node /app/scripts/prepare-benchmark-users.mjs --prefix BENCH --totalUsers 30 --backlogOrders 24`
+  - `docker compose exec web node /app/scripts/benchmark-production-flow.mjs --usersFile /app/scripts/benchmark-user-sessions.sample.json --sessions 30 --durationSec 300 --rampUpSec 20 --baseUrl http://host.docker.internal:3000`
+- `host.docker.internal` yerine isterseniz Windows makinenin LAN adresi de verilebilir: `http://192.168.X.X:3000`
 - Runner su metrikleri raporlar:
   - toplam istek / hata sayisi
   - endpoint bazli `P50 / P95 / P99`
@@ -93,9 +95,9 @@ Amac, paralel spam yerine rol-bazli ve kuyruklu oturumlarla cekirdek uretim emri
   - backlog altinda ilk kabul ve is adimi gecikmeleri
 
 ### 3. Test verisini temizleyin
-- `corepack pnpm bench:cleanup -- --prefix BENCH`
+- `docker compose exec web node /app/scripts/cleanup-benchmark-data.mjs --prefix BENCH`
 - veya
-- `corepack pnpm bench:cleanup -- --usersFile scripts/benchmark-user-sessions.sample.json`
+- `docker compose exec web node /app/scripts/cleanup-benchmark-data.mjs --usersFile /app/scripts/benchmark-user-sessions.sample.json`
 
 ### Senaryo modeli
 - `production_manager` kullanicilari belli araliklarla yeni emir acar, uygun oldugunda sonraki sevki yapar ve tum gruplar kapaninca emri bitirir.
