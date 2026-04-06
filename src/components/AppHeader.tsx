@@ -15,7 +15,7 @@ interface AppHeaderProps {
 }
 
 function buildNavItems(role: SessionDTO['role']) {
-  if (role === 'hat') {
+  if (role === 'raw_preparation' || role === 'machine_operator') {
     return [
       { href: '/production-orders/incoming', label: 'Gelen Emirler' },
       { href: '/production-orders/tasks', label: 'Devam Eden Emirler' }

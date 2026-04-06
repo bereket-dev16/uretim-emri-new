@@ -4,6 +4,7 @@ import { useReducer } from 'react';
 import type { Dispatch } from 'react';
 
 import type { Role, UserDTO } from '@/shared/types/domain';
+import { roleRequiresAssignedUnit } from './role-unit-utils';
 
 export interface CreateUserForm {
   username: string;
@@ -142,7 +143,7 @@ export function useUsersAdminPanel(initialUsers: UserDTO[]) {
     try {
       const createPayload = {
         ...state.createForm,
-        hatUnitCode: state.createForm.role === 'hat' ? state.createForm.hatUnitCode : null
+        hatUnitCode: roleRequiresAssignedUnit(state.createForm.role) ? state.createForm.hatUnitCode : null
       };
 
       const response = await fetch('/api/admin/users', {
@@ -186,7 +187,7 @@ export function useUsersAdminPanel(initialUsers: UserDTO[]) {
         body: JSON.stringify({
           username: user.username,
           role: user.role,
-          hatUnitCode: user.role === 'hat' ? user.hatUnitCode : null,
+          hatUnitCode: roleRequiresAssignedUnit(user.role) ? user.hatUnitCode : null,
           isActive: user.isActive
         })
       });

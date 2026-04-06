@@ -22,6 +22,7 @@ export default async function ProductionUnitTasksPage({ searchParams }: Producti
   });
 
   const unitCode = session.hatUnitCode;
+  const canViewAttachments = session.role !== 'machine_operator';
   const page = pickPage((await searchParams)?.page);
   const pageSize = 10;
   const payload = await listProductionOrders({
@@ -50,7 +51,14 @@ export default async function ProductionUnitTasksPage({ searchParams }: Producti
         description="Tamamlama sırasında son sipariş miktarını girmek zorunludur."
         action={<span className="text-sm text-slate-600">Sayfa {page} / {totalPages}</span>}
       >
-        <ProductionUnitTasksPanel initialItems={payload.items} page={page} pageSize={pageSize} />
+        <ProductionUnitTasksPanel
+          initialItems={payload.items}
+          page={page}
+          pageSize={pageSize}
+          actorUnitCode={unitCode}
+          canViewAttachments={canViewAttachments}
+          canDownloadAttachments={canViewAttachments}
+        />
       </SectionPanel>
     </div>
   );

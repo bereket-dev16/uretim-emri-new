@@ -18,18 +18,31 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { AttachmentList, DispatchHistoryTable, OrderMetaGrid, OrderSummaryLine } from './order-view';
+import {
+  AttachmentList,
+  DispatchGroupOverview,
+  DispatchHistoryTable,
+  OrderMetaGrid,
+  OrderNotePanel,
+  OrderSummaryLine
+} from './order-view';
 
 interface ProductionUnitTasksPanelProps {
   initialItems: ProductionOrderListItemDTO[];
   page: number;
   pageSize: number;
+  actorUnitCode: string | null;
+  canViewAttachments: boolean;
+  canDownloadAttachments: boolean;
 }
 
 export function ProductionUnitTasksPanel({
   initialItems,
   page,
-  pageSize
+  pageSize,
+  actorUnitCode,
+  canViewAttachments,
+  canDownloadAttachments
 }: ProductionUnitTasksPanelProps) {
   const [items, setItems] = useState(initialItems);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -104,7 +117,9 @@ export function ProductionUnitTasksPanel({
       return;
     }
 
-    const activeDispatch = completeTarget.dispatches.find((dispatch) => dispatch.status === 'in_progress');
+    const activeDispatch = completeTarget.dispatches.find(
+      (dispatch) => dispatch.status === 'in_progress' && dispatch.unitCode === actorUnitCode
+    );
 
     if (!activeDispatch) {
       setErrorMessage('Çalışan görev bulunamadı.');
@@ -196,13 +211,23 @@ export function ProductionUnitTasksPanel({
                   <OrderMetaGrid order={order} />
                 </section>
                 <section className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-950">Operasyon Notu</h3>
+                  <OrderNotePanel order={order} />
+                </section>
+                <section className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-950">Mevcut Süreç</h3>
+                  <DispatchGroupOverview order={order} />
+                </section>
+                <section className="space-y-3">
                   <h3 className="text-base font-semibold text-slate-950">Sevk Geçmişi</h3>
                   <DispatchHistoryTable order={order} />
                 </section>
-                <section className="space-y-3">
-                  <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>
-                  <AttachmentList order={order} canDownload={false} />
-                </section>
+                {canViewAttachments ? (
+                  <section className="space-y-3">
+                    <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>
+                    <AttachmentList order={order} canDownload={canDownloadAttachments} />
+                  </section>
+                ) : null}
               </div>
             ) : null}
           </div>

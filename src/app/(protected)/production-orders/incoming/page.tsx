@@ -24,6 +24,7 @@ export default async function ProductionUnitIncomingPage({
   });
 
   const unitCode = session.hatUnitCode;
+  const canViewAttachments = session.role !== 'machine_operator';
   const page = pickPage((await searchParams)?.page);
   const pageSize = 10;
   const payload = await listProductionOrders({
@@ -49,10 +50,21 @@ export default async function ProductionUnitIncomingPage({
 
       <SectionPanel
         title="Bekleyen Liste"
-        description="Detayı açıp ekleri inceleyebilir, ardından emri kabul ederek çalışma adımına taşıyabilirsiniz."
+        description={
+          canViewAttachments
+            ? 'Detayı açıp notları ve ekleri inceleyebilir, ardından emri kabul ederek çalışma adımına taşıyabilirsiniz.'
+            : 'Detayı açıp form ve not bilgilerini inceleyebilir, ardından emri kabul ederek çalışma adımına taşıyabilirsiniz.'
+        }
         action={<span className="text-sm text-slate-600">Sayfa {page} / {totalPages}</span>}
       >
-        <ProductionUnitIncomingPanel initialItems={payload.items} page={page} pageSize={pageSize} />
+        <ProductionUnitIncomingPanel
+          initialItems={payload.items}
+          page={page}
+          pageSize={pageSize}
+          actorUnitCode={unitCode}
+          canViewAttachments={canViewAttachments}
+          canDownloadAttachments={canViewAttachments}
+        />
       </SectionPanel>
     </div>
   );

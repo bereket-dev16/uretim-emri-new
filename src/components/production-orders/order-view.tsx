@@ -1,8 +1,21 @@
 import Link from 'next/link';
 
-import { DEMAND_SOURCE_LABELS, MARKET_SCOPE_LABELS, PACKAGING_TYPE_LABELS, getProductionUnitLabel } from '@/modules/production-orders/constants';
-import type { ProductionOrderDispatchDTO, ProductionOrderListItemDTO, ProductionUnitDTO } from '@/shared/types/domain';
+import {
+  DEMAND_SOURCE_LABELS,
+  MARKET_SCOPE_LABELS,
+  PACKAGING_TYPE_LABELS,
+  PRODUCTION_UNIT_GROUP_LABELS,
+  getProductionUnitLabel
+} from '@/modules/production-orders/constants';
+import type {
+  ProductionOrderDispatchDTO,
+  ProductionOrderListItemDTO,
+  ProductionUnitDTO,
+  ProductionUnitGroup
+} from '@/shared/types/domain';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+const GROUP_ORDER: ProductionUnitGroup[] = ['HAMMADDE', 'MAKINE'];
 
 export function formatDate(value: string): string {
   const date = new Date(value);
@@ -29,18 +42,6 @@ export function getStatusTone(status: string): 'pending' | 'in_progress' | 'comp
   }
 }
 
-export function getCurrentDispatch(order: ProductionOrderListItemDTO): ProductionOrderDispatchDTO | null {
-  const openDispatch =
-    order.dispatches.find((dispatch) => dispatch.status === 'in_progress') ??
-    order.dispatches.find((dispatch) => dispatch.status === 'pending');
-
-  if (openDispatch) {
-    return openDispatch;
-  }
-
-  return order.dispatches[order.dispatches.length - 1] ?? null;
-}
-
 export function getDispatchStatusLabel(status: ProductionOrderDispatchDTO['status']): string {
   switch (status) {
     case 'pending':
@@ -54,18 +55,79 @@ export function getDispatchStatusLabel(status: ProductionOrderDispatchDTO['statu
   }
 }
 
+export function getDispatchesForGroup(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): ProductionOrderDispatchDTO[] {
+  return order.dispatches.filter((dispatch) => dispatch.unitGroup === group);
+}
+
+export function getOpenDispatchForGroup(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): ProductionOrderDispatchDTO | null {
+  const inProgress = order.dispatches.find(
+    (dispatch) => dispatch.unitGroup === group && dispatch.status === 'in_progress'
+  );
+
+  if (inProgress) {
+    return inProgress;
+  }
+
+  return (
+    order.dispatches.find((dispatch) => dispatch.unitGroup === group && dispatch.status === 'pending') ?? null
+  );
+}
+
+export function getLastDispatchForGroup(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): ProductionOrderDispatchDTO | null {
+  const list = getDispatchesForGroup(order, group);
+  return list[list.length - 1] ?? null;
+}
+
+export function getDisplayDispatchForGroup(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): ProductionOrderDispatchDTO | null {
+  return getOpenDispatchForGroup(order, group) ?? getLastDispatchForGroup(order, group);
+}
+
+export function getCurrentDispatch(order: ProductionOrderListItemDTO): ProductionOrderDispatchDTO | null {
+  return (
+    order.dispatches.find((dispatch) => dispatch.status === 'in_progress') ??
+    order.dispatches.find((dispatch) => dispatch.status === 'pending') ??
+    order.dispatches[order.dispatches.length - 1] ??
+    null
+  );
+}
+
+export function hasAnyOpenDispatch(order: ProductionOrderListItemDTO): boolean {
+  return order.dispatches.some(
+    (dispatch) => dispatch.status === 'pending' || dispatch.status === 'in_progress'
+  );
+}
+
+export function hasOpenDispatchForGroup(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): boolean {
+  return getOpenDispatchForGroup(order, group) !== null;
+}
+
 export function getOrderStateLabel(order: ProductionOrderListItemDTO): string {
   if (order.status === 'completed') {
     return 'Bitti';
   }
 
-  const currentDispatch = getCurrentDispatch(order);
+  const summary = GROUP_ORDER.map((group) => {
+    const dispatch = getDisplayDispatchForGroup(order, group);
+    const label = dispatch ? getDispatchStatusLabel(dispatch.status) : 'Hazır';
+    return `${PRODUCTION_UNIT_GROUP_LABELS[group]}: ${label}`;
+  });
 
-  if (!currentDispatch) {
-    return 'Hazır';
-  }
-
-  return `${getProductionUnitLabel(currentDispatch.unitCode, currentDispatch.unitName)} / ${getDispatchStatusLabel(currentDispatch.status)}`;
+  return summary.join(' • ');
 }
 
 export function buildOrderMetaRows(order: ProductionOrderListItemDTO) {
@@ -91,38 +153,43 @@ export function buildOrderMetaRows(order: ProductionOrderListItemDTO) {
 
 export function availableDispatchTargets(
   order: ProductionOrderListItemDTO,
-  units: ProductionUnitDTO[]
+  units: ProductionUnitDTO[],
+  group: ProductionUnitGroup
 ): Array<ProductionUnitDTO & { disabled: boolean }> {
   const usedUnits = new Set(order.dispatches.map((dispatch) => dispatch.unitCode));
 
-  return units.map((unit) => ({
-    ...unit,
-    disabled: usedUnits.has(unit.code)
-  }));
+  return units
+    .filter((unit) => unit.unitGroup === group)
+    .map((unit) => ({
+      ...unit,
+      disabled: usedUnits.has(unit.code)
+    }));
 }
 
 export function suggestedDispatchUnit(
   order: ProductionOrderListItemDTO,
-  units: ProductionUnitDTO[]
+  units: ProductionUnitDTO[],
+  group: ProductionUnitGroup
 ): string | null {
-  if (!order.plannedMachineUnitCode) {
+  const targets = availableDispatchTargets(order, units, group);
+  const preferredCode = group === 'HAMMADDE' ? order.plannedRawUnitCode : order.plannedMachineUnitCode;
+
+  if (!preferredCode) {
     return null;
   }
 
-  const preferred = units.find((unit) => unit.code === order.plannedMachineUnitCode);
+  const preferred = targets.find((unit) => unit.code === preferredCode);
 
-  if (preferred && !availableDispatchTargets(order, [preferred])[0]?.disabled) {
+  if (preferred && !preferred.disabled) {
     return preferred.code;
   }
 
-  return availableDispatchTargets(order, units).find((unit) => !unit.disabled)?.code ?? null;
+  return null;
 }
 
 export function OrderSummaryLine({ order }: { order: ProductionOrderListItemDTO }) {
-  const currentDispatch = getCurrentDispatch(order);
-
   return (
-    <div className="grid gap-3 border-b border-slate-200 px-5 py-4 lg:grid-cols-[1.1fr_1.2fr_0.8fr_0.8fr_0.8fr] lg:items-center">
+    <div className="grid gap-3 border-b border-slate-200 px-5 py-4 lg:grid-cols-[0.8fr_1.1fr_0.7fr_0.95fr_0.95fr] lg:items-start">
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">İş Emri</div>
         <div className="mt-1 text-base font-semibold text-slate-950">#{order.orderNo}</div>
@@ -135,17 +202,26 @@ export function OrderSummaryLine({ order }: { order: ProductionOrderListItemDTO 
         <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">Termin</div>
         <div className="mt-1 text-sm text-slate-700">{formatDate(order.deadlineDate)}</div>
       </div>
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">Mevcut Birim</div>
-        <div className="mt-1 text-sm text-slate-700">
-          {currentDispatch ? getProductionUnitLabel(currentDispatch.unitCode, currentDispatch.unitName) : '-'}
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2 lg:justify-end">
-        <span className="status-chip" data-status={getStatusTone(order.status === 'completed' ? 'finished' : currentDispatch?.status ?? 'pending')}>
-          {getOrderStateLabel(order)}
-        </span>
-      </div>
+      {GROUP_ORDER.map((group) => {
+        const dispatch = getDisplayDispatchForGroup(order, group);
+
+        return (
+          <div key={group} className="space-y-1">
+            <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">
+              {PRODUCTION_UNIT_GROUP_LABELS[group]}
+            </div>
+            <div className="text-sm text-slate-700">
+              {dispatch ? getProductionUnitLabel(dispatch.unitCode, dispatch.unitName) : '-'}
+            </div>
+            <span
+              className="status-chip"
+              data-status={getStatusTone(order.status === 'completed' && !dispatch ? 'finished' : dispatch?.status ?? 'finished')}
+            >
+              {order.status === 'completed' && !dispatch ? 'Bitti' : dispatch ? getDispatchStatusLabel(dispatch.status) : 'Hazır'}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -165,6 +241,64 @@ export function OrderMetaGrid({ order }: { order: ProductionOrderListItemDTO }) 
   );
 }
 
+export function OrderNotePanel({ order }: { order: ProductionOrderListItemDTO }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+      <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">Operasyon Notu</div>
+      <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+        {order.noteText?.trim() ? order.noteText : 'Not girilmedi.'}
+      </div>
+    </div>
+  );
+}
+
+export function DispatchGroupOverview({ order }: { order: ProductionOrderListItemDTO }) {
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {GROUP_ORDER.map((group) => {
+        const openDispatch = getOpenDispatchForGroup(order, group);
+        const lastDispatch = getLastDispatchForGroup(order, group);
+        const displayDispatch = openDispatch ?? lastDispatch;
+
+        return (
+          <div key={group} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-950">{PRODUCTION_UNIT_GROUP_LABELS[group]}</div>
+                <div className="mt-1 text-sm text-slate-600">
+                  {displayDispatch
+                    ? getProductionUnitLabel(displayDispatch.unitCode, displayDispatch.unitName)
+                    : 'Henüz bu grup için işlem başlatılmadı.'}
+                </div>
+              </div>
+              <span
+                className="status-chip"
+                data-status={getStatusTone(displayDispatch?.status ?? (order.status === 'completed' ? 'finished' : 'pending'))}
+              >
+                {displayDispatch
+                  ? getDispatchStatusLabel(displayDispatch.status)
+                  : order.status === 'completed'
+                    ? 'Bitti'
+                    : 'Hazır'}
+              </span>
+            </div>
+            {displayDispatch ? (
+              <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                <div>
+                  <span className="font-medium text-slate-700">Gönderim:</span> {formatDateTime(displayDispatch.dispatchedAt)}
+                </div>
+                <div>
+                  <span className="font-medium text-slate-700">Bitiş:</span> {formatDateTime(displayDispatch.completedAt)}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AttachmentList({ order, canDownload }: { order: ProductionOrderListItemDTO; canDownload: boolean }) {
   if (order.attachments.length === 0) {
     return <div className="text-sm text-slate-500">Ek dosya bulunmuyor.</div>;
@@ -180,7 +314,7 @@ export function AttachmentList({ order, canDownload }: { order: ProductionOrderL
           <div>
             <div className="text-sm font-medium text-slate-900">{attachment.originalFilename}</div>
             <div className="mt-1 text-xs text-slate-500">
-              {Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB • {formatDateTime(attachment.createdAt)}
+              {Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB • {attachment.mimeType} • {formatDateTime(attachment.createdAt)}
             </div>
           </div>
           {canDownload ? (
@@ -189,7 +323,7 @@ export function AttachmentList({ order, canDownload }: { order: ProductionOrderL
               target="_blank"
               className="text-sm font-medium text-blue-700"
             >
-              Dosyayı Aç
+              Aç / İndir
             </Link>
           ) : null}
         </div>
@@ -220,7 +354,7 @@ export function DispatchHistoryTable({ order }: { order: ProductionOrderListItem
         {order.dispatches.map((dispatch) => (
           <TableRow key={dispatch.id}>
             <TableCell>{getProductionUnitLabel(dispatch.unitCode, dispatch.unitName)}</TableCell>
-            <TableCell>{dispatch.unitGroup}</TableCell>
+            <TableCell>{PRODUCTION_UNIT_GROUP_LABELS[dispatch.unitGroup]}</TableCell>
             <TableCell>
               <span className="status-chip" data-status={getStatusTone(dispatch.status)}>
                 {getDispatchStatusLabel(dispatch.status)}

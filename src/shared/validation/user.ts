@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const roleSchema = z.enum(['admin', 'production_manager', 'hat']);
+export const roleSchema = z.enum(['admin', 'production_manager', 'raw_preparation', 'machine_operator']);
 
 function hatUnitRequirement(
   value: {
@@ -9,11 +9,14 @@ function hatUnitRequirement(
   },
   ctx: z.RefinementCtx
 ) {
-  if (value.role === 'hat' && !value.hatUnitCode?.trim()) {
+  if (
+    (value.role === 'raw_preparation' || value.role === 'machine_operator') &&
+    !value.hatUnitCode?.trim()
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['hatUnitCode'],
-      message: 'Hat rolü için birim seçimi zorunludur.'
+      message: 'Operatör rolleri için birim seçimi zorunludur.'
     });
   }
 }

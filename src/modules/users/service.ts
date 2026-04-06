@@ -3,7 +3,7 @@ import type { QueryResultRow } from 'pg';
 import { AppError } from '@/shared/errors/app-error';
 import { queryDb, withTransaction } from '@/shared/db/client';
 import { hashPassword } from '@/shared/security/password';
-import type { Role, UserDTO } from '@/shared/types/domain';
+import type { ProductionUnitGroup, Role, UserDTO } from '@/shared/types/domain';
 
 interface UserRow extends QueryResultRow {
   id: string;
@@ -29,6 +29,62 @@ function mapUser(row: UserRow): UserDTO {
   };
 }
 
+function expectedUnitGroupForRole(role: Role): ProductionUnitGroup | null {
+  if (role === 'raw_preparation') {
+    return 'HAMMADDE';
+  }
+
+  if (role === 'machine_operator') {
+    return 'MAKINE';
+  }
+
+  return null;
+}
+
+async function normalizeAssignedUnit(role: Role, hatUnitCode?: string | null): Promise<string | null> {
+  const expectedGroup = expectedUnitGroupForRole(role);
+
+  if (!expectedGroup) {
+    return null;
+  }
+
+  const unitCode = hatUnitCode?.trim();
+
+  if (!unitCode) {
+    return null;
+  }
+
+  const unitResult = await queryDb<{ code: string; unit_group: ProductionUnitGroup; is_active: boolean }>(
+    `
+      SELECT code, unit_group, is_active
+      FROM production_units
+      WHERE code = $1
+      LIMIT 1
+    `,
+    [unitCode]
+  );
+
+  const unit = unitResult.rows[0];
+
+  if (!unit || !unit.is_active) {
+    throw new AppError({
+      status: 400,
+      code: 'UNIT_NOT_FOUND',
+      publicMessage: 'Seçilen birim bulunamadı.'
+    });
+  }
+
+  if (unit.unit_group !== expectedGroup) {
+    throw new AppError({
+      status: 400,
+      code: 'UNIT_ROLE_MISMATCH',
+      publicMessage: 'Seçilen birim bu rol için uygun değil.'
+    });
+  }
+
+  return unit.code;
+}
+
 export async function listUsers(): Promise<UserDTO[]> {
   const result = await queryDb<UserRow>(
     `
@@ -50,6 +106,7 @@ interface CreateUserParams {
 
 export async function createUser(params: CreateUserParams): Promise<UserDTO> {
   const passwordHash = await hashPassword(params.password);
+  const assignedUnitCode = await normalizeAssignedUnit(params.role, params.hatUnitCode);
 
   try {
     const result = await queryDb<UserRow>(
@@ -64,7 +121,7 @@ export async function createUser(params: CreateUserParams): Promise<UserDTO> {
         VALUES ($1, $2, $3, $4, TRUE)
         RETURNING id, username, role, hat_unit_code, is_active, last_login_at, created_at, updated_at
       `,
-      [params.username, passwordHash, params.role, params.hatUnitCode ?? null]
+      [params.username, passwordHash, params.role, assignedUnitCode]
     );
 
     return mapUser(result.rows[0]);
@@ -95,6 +152,35 @@ export async function updateUser(params: UpdateUserParams): Promise<UserDTO> {
   const updates: string[] = [];
   const values: unknown[] = [];
 
+  let effectiveRole: Role | undefined;
+
+  if (params.role !== undefined || params.hatUnitCode !== undefined) {
+    const currentUserResult = await queryDb<{ role: Role }>(
+      `
+        SELECT role
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [params.id]
+    );
+
+    const currentUser = currentUserResult.rows[0];
+
+    if (!currentUser) {
+      throw new AppError({
+        status: 404,
+        code: 'USER_NOT_FOUND',
+        publicMessage: 'Kullanıcı bulunamadı.'
+      });
+    }
+
+    effectiveRole = params.role ?? currentUser.role;
+  }
+
+  const nextHatUnitCode =
+    effectiveRole !== undefined ? await normalizeAssignedUnit(effectiveRole, params.hatUnitCode) : undefined;
+
   if (params.username !== undefined) {
     updates.push(`username = $${updates.length + 1}`);
     values.push(params.username);
@@ -105,9 +191,9 @@ export async function updateUser(params: UpdateUserParams): Promise<UserDTO> {
     values.push(params.role);
   }
 
-  if (params.hatUnitCode !== undefined) {
+  if (nextHatUnitCode !== undefined) {
     updates.push(`hat_unit_code = $${updates.length + 1}`);
-    values.push(params.hatUnitCode);
+    values.push(nextHatUnitCode);
   }
 
   if (params.isActive !== undefined) {

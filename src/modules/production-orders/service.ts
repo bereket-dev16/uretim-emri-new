@@ -34,6 +34,7 @@ interface ProductionOrderCreateInput {
   marketScope: 'ihracat' | 'ic_piyasa';
   demandSource: 'numune' | 'musteri_talebi' | 'stok';
   packagingType: 'kapsul' | 'tablet' | 'sivi' | 'sase' | 'softjel';
+  noteText: string | null;
   plannedRawUnitCode: ProductionUnit;
   plannedMachineUnitCode: ProductionUnit | null;
 }
@@ -65,6 +66,7 @@ interface FinishProductionOrderParams {
 interface AcceptDispatchParams {
   dispatchId: string;
   actorUserId: string;
+  actorRole: Role;
   actorUnitCode: string | null;
 }
 
@@ -100,6 +102,7 @@ interface ProductionOrderRow extends QueryResultRow {
   market_scope: 'ihracat' | 'ic_piyasa';
   demand_source: 'numune' | 'musteri_talebi' | 'stok';
   packaging_type: 'kapsul' | 'tablet' | 'sivi' | 'sase' | 'softjel';
+  note_text: string | null;
   planned_raw_unit_code: string;
   planned_machine_unit_code: string | null;
   status: ProductionOrderStatus;
@@ -138,6 +141,29 @@ interface AttachmentDownloadRecord {
   mime_type: string;
   storage_path: string;
 }
+
+const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]);
+
+const EXTENSION_MIME_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+};
 
 function toIsoDate(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
@@ -203,6 +229,7 @@ function mapOrderRow(
     marketScope: row.market_scope,
     demandSource: row.demand_source,
     packagingType: row.packaging_type,
+    noteText: row.note_text,
     plannedRawUnitCode: row.planned_raw_unit_code,
     plannedMachineUnitCode: row.planned_machine_unit_code,
     status: row.status,
@@ -211,6 +238,24 @@ function mapOrderRow(
     updatedAt: toIsoDateTime(row.updated_at),
     attachments,
     dispatches
+  };
+}
+
+function canViewOrderAttachments(role: Role): boolean {
+  return role !== 'machine_operator';
+}
+
+function withAttachmentVisibility(
+  order: ProductionOrderListItemDTO,
+  role: Role
+): ProductionOrderListItemDTO {
+  if (canViewOrderAttachments(role)) {
+    return order;
+  }
+
+  return {
+    ...order,
+    attachments: []
   };
 }
 
@@ -275,6 +320,7 @@ async function getOrderByIdWithClient(
         o.market_scope,
         o.demand_source,
         o.packaging_type,
+        o.note_text,
         o.planned_raw_unit_code,
         o.planned_machine_unit_code,
         o.status,
@@ -302,7 +348,7 @@ async function getOrderByIdWithClient(
         d.production_order_id,
         d.unit_code,
         pu.name AS unit_name,
-        pu.unit_group,
+        d.unit_group,
         d.status,
         d.dispatched_at,
         d.accepted_at,
@@ -410,7 +456,32 @@ function normalizeFilename(filename: string): string {
     .toLowerCase();
 }
 
-async function ensureOrderCanAdvance(client: DbClient, orderId: string): Promise<ProductionOrderListItemDTO> {
+function resolveAttachmentMimeType(file: File): string | null {
+  if (file.type && ALLOWED_ATTACHMENT_MIME_TYPES.has(file.type)) {
+    return file.type;
+  }
+
+  const extension = file.name.split('.').pop()?.trim().toLowerCase();
+
+  if (!extension) {
+    return null;
+  }
+
+  return EXTENSION_MIME_TYPES[extension] ?? null;
+}
+
+function getOpenDispatches(
+  order: ProductionOrderListItemDTO,
+  unitGroup?: ProductionUnitGroup
+): ProductionOrderDispatchDTO[] {
+  return order.dispatches.filter(
+    (dispatch) =>
+      (!unitGroup || dispatch.unitGroup === unitGroup) &&
+      (dispatch.status === 'pending' || dispatch.status === 'in_progress')
+  );
+}
+
+async function ensureActiveOrder(client: DbClient, orderId: string): Promise<ProductionOrderListItemDTO> {
   const order = await getOrderByIdWithClient(client, orderId);
 
   if (!order) {
@@ -426,18 +497,6 @@ async function ensureOrderCanAdvance(client: DbClient, orderId: string): Promise
       status: 409,
       code: 'ORDER_ALREADY_COMPLETED',
       publicMessage: 'Bu üretim emri tamamlanmış durumda.'
-    });
-  }
-
-  const hasOpenDispatch = order.dispatches.some(
-    (dispatch) => dispatch.status === 'pending' || dispatch.status === 'in_progress'
-  );
-
-  if (hasOpenDispatch) {
-    throw new AppError({
-      status: 409,
-      code: 'ORDER_HAS_OPEN_DISPATCH',
-      publicMessage: 'Aktif bir sevk varken yeni bir adım başlatılamaz.'
     });
   }
 
@@ -514,6 +573,7 @@ export async function listProductionOrders(
         o.market_scope,
         o.demand_source,
         o.packaging_type,
+        o.note_text,
         o.planned_raw_unit_code,
         o.planned_machine_unit_code,
         o.status,
@@ -551,7 +611,7 @@ export async function listProductionOrders(
         d.production_order_id,
         d.unit_code,
         pu.name AS unit_name,
-        pu.unit_group,
+        d.unit_group,
         d.status,
         d.dispatched_at,
         d.accepted_at,
@@ -565,24 +625,26 @@ export async function listProductionOrders(
     [orderIds]
   );
 
-  const attachmentResult = await queryDb<ProductionOrderAttachmentRow>(
-    `
-      SELECT
-        a.id,
-        a.production_order_id,
-        a.original_filename,
-        a.mime_type,
-        a.size_bytes,
-        a.created_at,
-        uploader.username AS uploaded_by_username,
-        a.storage_path
-      FROM production_order_attachments a
-      LEFT JOIN users uploader ON uploader.id = a.uploaded_by
-      WHERE a.production_order_id = ANY($1::uuid[])
-      ORDER BY a.created_at ASC
-    `,
-    [orderIds]
-  );
+  const attachmentResult = canViewOrderAttachments(params.actorRole)
+    ? await queryDb<ProductionOrderAttachmentRow>(
+        `
+          SELECT
+            a.id,
+            a.production_order_id,
+            a.original_filename,
+            a.mime_type,
+            a.size_bytes,
+            a.created_at,
+            uploader.username AS uploaded_by_username,
+            a.storage_path
+          FROM production_order_attachments a
+          LEFT JOIN users uploader ON uploader.id = a.uploaded_by
+          WHERE a.production_order_id = ANY($1::uuid[])
+          ORDER BY a.created_at ASC
+        `,
+        [orderIds]
+      )
+    : { rows: [] };
 
   const dispatchMap = new Map<string, ProductionOrderDispatchDTO[]>();
   const attachmentMap = new Map<string, ProductionOrderAttachmentDTO[]>();
@@ -601,7 +663,10 @@ export async function listProductionOrders(
 
   return {
     items: ordersResult.rows.map((row) =>
-      mapOrderRow(row, attachmentMap.get(row.id) ?? [], dispatchMap.get(row.id) ?? [])
+      withAttachmentVisibility(
+        mapOrderRow(row, attachmentMap.get(row.id) ?? [], dispatchMap.get(row.id) ?? []),
+        params.actorRole
+      )
     ),
     total: countResult.rows[0]?.total ?? 0,
     page,
@@ -654,6 +719,7 @@ export async function createProductionOrder(
           market_scope,
           demand_source,
           packaging_type,
+          note_text,
           planned_raw_unit_code,
           planned_machine_unit_code,
           status,
@@ -661,7 +727,7 @@ export async function createProductionOrder(
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15, 'active', $16
+          $11, $12, $13, $14, $15, $16, 'active', $17
         )
         RETURNING id
       `,
@@ -679,6 +745,7 @@ export async function createProductionOrder(
         params.input.marketScope,
         params.input.demandSource,
         params.input.packagingType,
+        params.input.noteText,
         params.input.plannedRawUnitCode,
         params.input.plannedMachineUnitCode,
         params.actorUserId
@@ -707,6 +774,21 @@ export async function createProductionOrder(
       `,
       [orderId, params.input.plannedRawUnitCode, params.actorUserId]
     );
+
+    if (params.input.plannedMachineUnitCode) {
+      await client.query(
+        `
+          INSERT INTO production_order_dispatches (
+            production_order_id,
+            unit_code,
+            status,
+            dispatched_by
+          )
+          VALUES ($1::uuid, $2, 'pending', $3::uuid)
+        `,
+        [orderId, params.input.plannedMachineUnitCode, params.actorUserId]
+      );
+    }
 
     const createdOrder = await getOrderByIdWithClient(client, orderId);
 
@@ -738,7 +820,7 @@ export async function dispatchProductionOrder(
   params: DispatchProductionOrderParams
 ): Promise<ProductionOrderListItemDTO> {
   return withTransaction(async (client) => {
-    const order = await ensureOrderCanAdvance(client, params.id);
+    const order = await ensureActiveOrder(client, params.id);
     const unit = await getUnitWithClient(client, params.unitCode);
 
     if (!unit || !unit.is_active) {
@@ -754,6 +836,14 @@ export async function dispatchProductionOrder(
         status: 409,
         code: 'DISPATCH_ALREADY_EXISTS',
         publicMessage: 'Bu üretim emri aynı birime tekrar gönderilemez.'
+      });
+    }
+
+    if (getOpenDispatches(order, unit.unit_group).length > 0) {
+      throw new AppError({
+        status: 409,
+        code: 'DISPATCH_GROUP_BUSY',
+        publicMessage: 'Aynı grupta açık bir görev varken yeni sevk açılamaz.'
       });
     }
 
@@ -781,6 +871,21 @@ export async function dispatchProductionOrder(
     }
 
     return updatedOrder;
+  }).catch((error) => {
+    const pgError = error as { code?: string; constraint?: string };
+
+    if (
+      pgError.code === '23505' &&
+      pgError.constraint === 'idx_production_order_dispatches_open_group_unique'
+    ) {
+      throw new AppError({
+        status: 409,
+        code: 'DISPATCH_GROUP_BUSY',
+        publicMessage: 'Aynı grupta açık bir görev varken yeni sevk açılamaz.'
+      });
+    }
+
+    throw error;
   });
 }
 
@@ -788,7 +893,15 @@ export async function finishProductionOrder(
   params: FinishProductionOrderParams
 ): Promise<ProductionOrderListItemDTO> {
   return withTransaction(async (client) => {
-    const order = await ensureOrderCanAdvance(client, params.id);
+    const order = await ensureActiveOrder(client, params.id);
+
+    if (getOpenDispatches(order).length > 0) {
+      throw new AppError({
+        status: 409,
+        code: 'ORDER_HAS_OPEN_DISPATCH',
+        publicMessage: 'Hammadde veya makine tarafında açık görev varken emir bitirilemez.'
+      });
+    }
 
     await client.query(
       `
@@ -881,7 +994,7 @@ export async function acceptProductionOrderDispatch(
       });
     }
 
-    return updatedOrder;
+    return withAttachmentVisibility(updatedOrder, params.actorRole);
   });
 }
 
@@ -953,7 +1066,7 @@ export async function completeProductionOrderDispatch(
       });
     }
 
-    return updatedOrder;
+    return withAttachmentVisibility(updatedOrder, params.actorRole);
   });
 }
 
@@ -965,6 +1078,16 @@ export async function addProductionOrderAttachment(
       status: 400,
       code: 'EMPTY_ATTACHMENT',
       publicMessage: 'Boş dosya yüklenemez.'
+    });
+  }
+
+  const mimeType = resolveAttachmentMimeType(params.file);
+
+  if (!mimeType) {
+    throw new AppError({
+      status: 400,
+      code: 'ATTACHMENT_TYPE_NOT_ALLOWED',
+      publicMessage: 'Yalnız PDF, görsel, Word ve Excel dosyaları yüklenebilir.'
     });
   }
 
@@ -1002,7 +1125,7 @@ export async function addProductionOrderAttachment(
         params.orderId,
         storagePath,
         params.file.name || 'ek-dosya',
-        params.file.type || 'application/octet-stream',
+        mimeType,
         params.file.size,
         params.actorUserId
       ]

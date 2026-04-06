@@ -21,7 +21,7 @@ export default async function ProductionOrderCreatePage() {
       <PageIntro
         badge="Üretim"
         title="Üretim Emri Oluştur"
-        description="İş emri bilgilerini girin, ilk hammadde birimini seçin ve gerekiyorsa ek dosya yükleyin."
+        description="İş emri bilgilerini girin, operasyon notunu ekleyin ve gerekiyorsa hammadde ile makine görevlerini birlikte başlatın."
         actions={
           <div className="flex h-12 items-center rounded-xl border border-slate-200 bg-white px-3">
             <Image
@@ -36,7 +36,7 @@ export default async function ProductionOrderCreatePage() {
         }
       />
 
-      <SectionPanel title="Yeni Emir" description="Önizleme onayından sonra yalnız ilk hammadde adımı açılır.">
+      <SectionPanel title="Yeni Emir" description="Önizleme onayından sonra hammadde görevi açılır; makine seçildiyse aynı anda ilk makine görevi de başlatılır.">
         <ProductionOrderCreateForm rawUnits={rawUnits} machineUnits={machineUnits} />
       </SectionPanel>
     </div>

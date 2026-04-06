@@ -3,7 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-import { availableDispatchTargets, AttachmentList, DispatchHistoryTable, formatDate, getCurrentDispatch, OrderMetaGrid, OrderSummaryLine, suggestedDispatchUnit } from './order-view';
+import {
+  availableDispatchTargets,
+  AttachmentList,
+  DispatchGroupOverview,
+  DispatchHistoryTable,
+  formatDate,
+  hasAnyOpenDispatch,
+  hasOpenDispatchForGroup,
+  OrderMetaGrid,
+  OrderNotePanel,
+  OrderSummaryLine,
+  suggestedDispatchUnit
+} from './order-view';
 import {
   PRODUCTION_ORDERS_POLL_INTERVAL_MS,
   PRODUCTION_ORDERS_POLL_JITTER_MS
@@ -18,8 +30,12 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { ProductionOrderListItemDTO, ProductionUnitDTO } from '@/shared/types/domain';
-import { getProductionUnitLabel } from '@/modules/production-orders/constants';
+import type {
+  ProductionOrderListItemDTO,
+  ProductionUnitDTO,
+  ProductionUnitGroup
+} from '@/shared/types/domain';
+import { PRODUCTION_UNIT_GROUP_LABELS, getProductionUnitLabel } from '@/modules/production-orders/constants';
 
 interface ProductionOrderCardListProps {
   initialItems: ProductionOrderListItemDTO[];
@@ -29,7 +45,17 @@ interface ProductionOrderCardListProps {
   productionUnits?: ProductionUnitDTO[];
 }
 
+interface DispatchDialogTarget {
+  order: ProductionOrderListItemDTO;
+  group: ProductionUnitGroup;
+}
+
 const EMPTY_PRODUCTION_UNITS: ProductionUnitDTO[] = [];
+const GROUP_ORDER: ProductionUnitGroup[] = ['HAMMADDE', 'MAKINE'];
+
+function selectionKey(orderId: string, group: ProductionUnitGroup): string {
+  return `${orderId}:${group}`;
+}
 
 export function ProductionOrderCardList({
   initialItems,
@@ -44,7 +70,7 @@ export function ProductionOrderCardList({
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [dispatchTarget, setDispatchTarget] = useState<ProductionOrderListItemDTO | null>(null);
+  const [dispatchTarget, setDispatchTarget] = useState<DispatchDialogTarget | null>(null);
   const [finishTarget, setFinishTarget] = useState<ProductionOrderListItemDTO | null>(null);
 
   useEffect(() => {
@@ -61,11 +87,14 @@ export function ProductionOrderCardList({
       let changed = false;
 
       for (const order of initialItems) {
-        const nextValue = current[order.id] ?? suggestedDispatchUnit(order, productionUnits) ?? '';
+        for (const group of GROUP_ORDER) {
+          const key = selectionKey(order.id, group);
+          const nextValue = current[key] ?? suggestedDispatchUnit(order, productionUnits, group) ?? '';
 
-        if (next[order.id] !== nextValue) {
-          next[order.id] = nextValue;
-          changed = true;
+          if (next[key] !== nextValue) {
+            next[key] = nextValue;
+            changed = true;
+          }
         }
       }
 
@@ -145,19 +174,19 @@ export function ProductionOrderCardList({
       return;
     }
 
-    const unitCode = dispatchSelections[dispatchTarget.id];
+    const unitCode = dispatchSelections[selectionKey(dispatchTarget.order.id, dispatchTarget.group)];
 
     if (!unitCode) {
       setErrorMessage('Gönderilecek birim seçin.');
       return;
     }
 
-    setBusyOrderId(dispatchTarget.id);
+    setBusyOrderId(dispatchTarget.order.id);
     setErrorMessage(null);
     setStatusMessage(null);
 
     try {
-      const response = await fetch(`/api/production-orders/${dispatchTarget.id}/dispatch`, {
+      const response = await fetch(`/api/production-orders/${dispatchTarget.order.id}/dispatch`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -173,9 +202,11 @@ export function ProductionOrderCardList({
       }
 
       setItems((current) =>
-        current.map((item) => (item.id === dispatchTarget.id ? (payload.item as ProductionOrderListItemDTO) : item))
+        current.map((item) => (item.id === dispatchTarget.order.id ? (payload.item as ProductionOrderListItemDTO) : item))
       );
-      setStatusMessage(`Emir ${getProductionUnitLabel(unitCode)} birimine gönderildi.`);
+      setStatusMessage(
+        `${PRODUCTION_UNIT_GROUP_LABELS[dispatchTarget.group]} grubu için emir ${getProductionUnitLabel(unitCode)} birimine gönderildi.`
+      );
       setDispatchTarget(null);
     } catch {
       setErrorMessage('Sunucuya erişilemedi.');
@@ -206,7 +237,9 @@ export function ProductionOrderCardList({
       }
 
       setItems((current) =>
-        current.map((item) => (item.id === finishTarget.id ? (payload.item as ProductionOrderListItemDTO) : item))
+        scope === 'active'
+          ? current.filter((item) => item.id !== finishTarget.id)
+          : current.map((item) => (item.id === finishTarget.id ? (payload.item as ProductionOrderListItemDTO) : item))
       );
       setStatusMessage(`Emir #${finishTarget.orderNo} tamamlandı olarak kapatıldı.`);
       setFinishTarget(null);
@@ -240,11 +273,7 @@ export function ProductionOrderCardList({
 
       {sortedItems.map((order) => {
         const isExpanded = expandedId === order.id;
-        const currentDispatch = getCurrentDispatch(order);
-        const hasOpenDispatch = order.dispatches.some(
-          (dispatch) => dispatch.status === 'pending' || dispatch.status === 'in_progress'
-        );
-        const dispatchTargets = availableDispatchTargets(order, productionUnits);
+        const orderHasOpenDispatch = hasAnyOpenDispatch(order);
 
         return (
           <div key={order.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -253,9 +282,9 @@ export function ProductionOrderCardList({
             <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
               <div className="text-sm text-slate-600">
                 {scope === 'active'
-                  ? currentDispatch
-                    ? `${getProductionUnitLabel(currentDispatch.unitCode, currentDispatch.unitName)} biriminde işlem bekleniyor.`
-                    : 'Yeni adım göndermeye hazır.'
+                  ? orderHasOpenDispatch
+                    ? 'Hammadde ve makine süreçlerini grup bazlı izleyin, yalnız boşta olan gruba yeni sevk açın.'
+                    : 'İki grupta da açık görev yok. Yeni adım göndermeye veya emri bitirmeye hazır.'
                   : `Tamamlanma tarihi: ${formatDate(order.updatedAt)}`}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -274,6 +303,16 @@ export function ProductionOrderCardList({
                 </section>
 
                 <section className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-950">Operasyon Notu</h3>
+                  <OrderNotePanel order={order} />
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-base font-semibold text-slate-950">Mevcut Süreç</h3>
+                  <DispatchGroupOverview order={order} />
+                </section>
+
+                <section className="space-y-3">
                   <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>
                   <AttachmentList order={order} canDownload />
                 </section>
@@ -288,40 +327,65 @@ export function ProductionOrderCardList({
                     <div className="space-y-1">
                       <h3 className="text-base font-semibold text-slate-950">Yönetim İşlemleri</h3>
                       <p className="text-sm text-slate-600">
-                        Aktif bir pending/çalışıyor adım varken yeni sevk açılamaz. Son açık adım tamamlandığında yeni birime gönderin veya emri bitirin.
+                        Her grup aynı anda en fazla bir açık görev taşıyabilir. Bir grup boşta ise o grup için yeni sevk açabilir, iki grup da boşta ise emri bitirebilirsiniz.
                       </p>
                     </div>
 
-                    <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-                      <Select
-                        value={dispatchSelections[order.id] ?? ''}
-                        onValueChange={(value) =>
-                          setDispatchSelections((current) => ({
-                            ...current,
-                            [order.id]: value
-                          }))
-                        }
-                        disabled={hasOpenDispatch}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Birim seçin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dispatchTargets.map((unit) => (
-                            <SelectItem key={unit.code} value={unit.code} disabled={unit.disabled}>
-                              {unit.name} {unit.disabled ? '(kullanıldı)' : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        onClick={() => setDispatchTarget(order)}
-                        disabled={hasOpenDispatch || !dispatchSelections[order.id]}
-                      >
-                        Gönder
-                      </Button>
-                      <Button type="button" variant="outline" onClick={() => setFinishTarget(order)} disabled={hasOpenDispatch}>
+                    <div className="grid gap-4 xl:grid-cols-2">
+                      {GROUP_ORDER.map((group) => {
+                        const groupTargets = availableDispatchTargets(order, productionUnits, group);
+                        const groupHasOpenDispatch = hasOpenDispatchForGroup(order, group);
+                        const key = selectionKey(order.id, group);
+
+                        return (
+                          <div key={group} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-950">
+                                {PRODUCTION_UNIT_GROUP_LABELS[group]} grubu
+                              </div>
+                              <div className="mt-1 text-sm text-slate-600">
+                                {groupHasOpenDispatch
+                                  ? 'Bu grupta açık görev var. Yeni sevk açılamaz.'
+                                  : 'Bu grupta yeni sevk açabilirsiniz.'}
+                              </div>
+                            </div>
+
+                            <Select
+                              value={dispatchSelections[key] ?? ''}
+                              onValueChange={(value) =>
+                                setDispatchSelections((current) => ({
+                                  ...current,
+                                  [key]: value
+                                }))
+                              }
+                              disabled={groupHasOpenDispatch}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Birim seçin" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {groupTargets.map((unit) => (
+                                  <SelectItem key={unit.code} value={unit.code} disabled={unit.disabled}>
+                                    {unit.name} {unit.disabled ? '(kullanıldı)' : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+
+                            <Button
+                              type="button"
+                              onClick={() => setDispatchTarget({ order, group })}
+                              disabled={groupHasOpenDispatch || !dispatchSelections[key]}
+                            >
+                              Gönder
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button type="button" variant="outline" onClick={() => setFinishTarget(order)} disabled={orderHasOpenDispatch}>
                         Emri Bitir
                       </Button>
                     </div>
@@ -339,7 +403,7 @@ export function ProductionOrderCardList({
             <DialogTitle>Emri Gönder</DialogTitle>
             <DialogDescription>
               {dispatchTarget
-                ? `#${dispatchTarget.orderNo} numaralı emir seçilen birime gönderilecek.`
+                ? `#${dispatchTarget.order.orderNo} numaralı emir ${PRODUCTION_UNIT_GROUP_LABELS[dispatchTarget.group]} grubu için seçilen birime gönderilecek.`
                 : 'Seçilen emir gönderilecek.'}
             </DialogDescription>
           </DialogHeader>
@@ -347,7 +411,7 @@ export function ProductionOrderCardList({
             <Button type="button" variant="outline" onClick={() => setDispatchTarget(null)}>
               Vazgeç
             </Button>
-            <Button type="button" onClick={() => void handleDispatch()} disabled={busyOrderId === dispatchTarget?.id}>
+            <Button type="button" onClick={() => void handleDispatch()} disabled={busyOrderId === dispatchTarget?.order.id}>
               Onayla
             </Button>
           </DialogFooter>

@@ -15,7 +15,7 @@ interface RouteContext {
 
 export async function GET(request: NextRequest, context: RouteContext): Promise<NextResponse> {
   return withApiHandler(request, async ({ requestId }) => {
-    await requireApiSession(request, requestId, PERMISSIONS.PRODUCTION_ORDERS_MANAGE);
+    await requireApiSession(request, requestId, PERMISSIONS.PRODUCTION_ORDER_ATTACHMENTS_VIEW);
     const params = await context.params;
     const download = await getProductionOrderAttachmentDownload({
       orderId: params.id,

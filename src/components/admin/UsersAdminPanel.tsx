@@ -3,6 +3,7 @@
 import type { Role, ProductionUnitDTO, UserDTO } from '@/shared/types/domain';
 import { UsersMobileCard } from './UsersMobileCard';
 import { useUsersAdminPanel } from './useUsersAdminPanel';
+import { getUnitsForRole, roleRequiresAssignedUnit } from './role-unit-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,7 +32,8 @@ function RoleOptions() {
     <>
       <SelectItem value="admin">Admin</SelectItem>
       <SelectItem value="production_manager">Üretim Müdürü</SelectItem>
-      <SelectItem value="hat">Hat Operatörü</SelectItem>
+      <SelectItem value="raw_preparation">Hammadde Hazırlama</SelectItem>
+      <SelectItem value="machine_operator">Makine Birimi</SelectItem>
     </>
   );
 }
@@ -48,7 +50,8 @@ function CreateUserCard({
   onHatUnitChange,
   onSubmit
 }: CreateUserCardProps) {
-  const isHatRole = role === 'hat';
+  const isOperatorRole = roleRequiresAssignedUnit(role);
+  const availableUnits = getUnitsForRole(role, productionUnits);
 
   return (
     <section className="rounded-[18px] border border-border/70 bg-white p-5 sm:p-6">
@@ -89,7 +92,12 @@ function CreateUserCard({
                 const nextRole = value as Role;
                 onRoleChange(nextRole);
 
-                if (nextRole !== 'hat') {
+                const nextUnits = getUnitsForRole(nextRole, productionUnits);
+
+                if (
+                  !roleRequiresAssignedUnit(nextRole) ||
+                  (hatUnitCode && !nextUnits.some((unit) => unit.code === hatUnitCode))
+                ) {
                   onHatUnitChange(null);
                 }
               }}
@@ -103,18 +111,18 @@ function CreateUserCard({
             </Select>
           </div>
           <div className="space-y-2 md:col-span-1">
-            <span className="text-sm font-medium">Hat Birimi</span>
+            <span className="text-sm font-medium">Atanmış Birim</span>
             <Select
               value={hatUnitCode ?? '__none__'}
               onValueChange={(value) => onHatUnitChange(value === '__none__' ? null : value)}
-              disabled={!isHatRole}
+              disabled={!isOperatorRole}
             >
               <SelectTrigger className="bg-slate-50">
-                <SelectValue placeholder="Hat birimi seçin" />
+                <SelectValue placeholder="Birim seçin" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Seçilmedi</SelectItem>
-                {productionUnits.map((unit) => (
+                {availableUnits.map((unit) => (
                   <SelectItem key={unit.code} value={unit.code}>
                     {unit.name}
                   </SelectItem>
@@ -127,9 +135,9 @@ function CreateUserCard({
           </Button>
         </form>
 
-        {isHatRole ? (
+        {isOperatorRole ? (
           <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-muted-foreground">
-            Hat operatörü seçildiğinde kullanıcı yalnız atanmış hattın görev ekranını görür.
+            Operatör rolü seçildiğinde kullanıcı yalnız atanmış birimin gelen ve devam eden emir ekranlarını görür.
           </div>
         ) : null}
     </section>
@@ -165,7 +173,8 @@ function UserRow({
   onResetPassword,
   onDelete
 }: UserRowProps) {
-  const isHatRole = user.role === 'hat';
+  const isOperatorRole = roleRequiresAssignedUnit(user.role);
+  const availableUnits = getUnitsForRole(user.role, productionUnits);
 
   return (
     <TableRow>
@@ -184,7 +193,12 @@ function UserRow({
             const nextRole = value as Role;
             onRoleChange(user.id, nextRole);
 
-            if (nextRole !== 'hat') {
+            const nextUnits = getUnitsForRole(nextRole, productionUnits);
+
+            if (
+              !roleRequiresAssignedUnit(nextRole) ||
+              (user.hatUnitCode && !nextUnits.some((unit) => unit.code === user.hatUnitCode))
+            ) {
               onHatUnitChange(user.id, null);
             }
           }}
@@ -201,14 +215,14 @@ function UserRow({
         <Select
           value={user.hatUnitCode ?? '__none__'}
           onValueChange={(value) => onHatUnitChange(user.id, value === '__none__' ? null : value)}
-          disabled={!isHatRole}
+          disabled={!isOperatorRole}
         >
           <SelectTrigger className="h-8 w-[170px]">
-            <SelectValue placeholder="Hat birimi" />
+            <SelectValue placeholder="Atanmış birim" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Seçilmedi</SelectItem>
-            {productionUnits.map((unit) => (
+            {availableUnits.map((unit) => (
               <SelectItem key={unit.code} value={unit.code}>
                 {unit.name}
               </SelectItem>
@@ -337,7 +351,7 @@ function UsersTableCard({
                 <TableRow>
                   <TableHead>Kullanıcı adı</TableHead>
                   <TableHead>Rol</TableHead>
-                  <TableHead>Hat Birimi</TableHead>
+                  <TableHead>Atanmış Birim</TableHead>
                   <TableHead>Aktif</TableHead>
                   <TableHead>Son Giriş</TableHead>
                   <TableHead>Güncelle</TableHead>

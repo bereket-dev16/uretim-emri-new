@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'production_manager' | 'hat';
+export type Role = 'admin' | 'production_manager' | 'raw_preparation' | 'machine_operator';
 
 export type MarketScope = 'ihracat' | 'ic_piyasa';
 export type DemandSource = 'numune' | 'musteri_talebi' | 'stok';
@@ -77,6 +77,7 @@ export interface ProductionOrderListItemDTO {
   marketScope: MarketScope;
   demandSource: DemandSource;
   packagingType: PackagingType;
+  noteText: string | null;
   plannedRawUnitCode: ProductionUnit;
   plannedMachineUnitCode: ProductionUnit | null;
   status: ProductionOrderStatus;

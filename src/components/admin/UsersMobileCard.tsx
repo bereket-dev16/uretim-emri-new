@@ -5,6 +5,7 @@ import { ROLE_LABELS } from '@/shared/constants/role-labels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getUnitsForRole, roleRequiresAssignedUnit } from './role-unit-utils';
 
 interface UsersMobileCardProps {
   user: UserDTO;
@@ -26,7 +27,8 @@ function RoleOptions() {
     <>
       <SelectItem value="admin">Admin</SelectItem>
       <SelectItem value="production_manager">Üretim Müdürü</SelectItem>
-      <SelectItem value="hat">Hat Operatörü</SelectItem>
+      <SelectItem value="raw_preparation">Hammadde Hazırlama</SelectItem>
+      <SelectItem value="machine_operator">Makine Birimi</SelectItem>
     </>
   );
 }
@@ -45,7 +47,8 @@ export function UsersMobileCard({
   onResetPassword,
   onDelete
 }: UsersMobileCardProps) {
-  const isHatRole = user.role === 'hat';
+  const isOperatorRole = roleRequiresAssignedUnit(user.role);
+  const availableUnits = getUnitsForRole(user.role, productionUnits);
 
   return (
     <article className="rounded-[18px] border border-border/70 bg-white p-4 shadow-sm">
@@ -78,7 +81,12 @@ export function UsersMobileCard({
             const nextRole = value as Role;
             onRoleChange(user.id, nextRole);
 
-            if (nextRole !== 'hat') {
+            const nextUnits = getUnitsForRole(nextRole, productionUnits);
+
+            if (
+              !roleRequiresAssignedUnit(nextRole) ||
+              (user.hatUnitCode && !nextUnits.some((unit) => unit.code === user.hatUnitCode))
+            ) {
               onHatUnitChange(user.id, null);
             }
           }}
@@ -93,14 +101,14 @@ export function UsersMobileCard({
         <Select
           value={user.hatUnitCode ?? '__none__'}
           onValueChange={(value) => onHatUnitChange(user.id, value === '__none__' ? null : value)}
-          disabled={!isHatRole}
+          disabled={!isOperatorRole}
         >
           <SelectTrigger className="bg-slate-50">
-            <SelectValue placeholder="Hat birimi" />
+            <SelectValue placeholder="Atanmış birim" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Seçilmedi</SelectItem>
-            {productionUnits.map((unit) => (
+            {availableUnits.map((unit) => (
               <SelectItem key={unit.code} value={unit.code}>
                 {unit.name}
               </SelectItem>

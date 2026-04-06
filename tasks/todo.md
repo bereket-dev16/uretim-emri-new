@@ -700,3 +700,20 @@
 - Dogrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.
 - Local production `pnpm start` akisinda `.env` shell'e otomatik yuklenmedigi icin standalone server session cookie'yi `secure=true` varsayimi ile baslatabiliyordu; `scripts/start-standalone.mjs` icine `@next/env` ile env load eklendi ve child process `NODE_ENV=production` ile netlestirildi.
 - Kullanici geri bildirimiyle create formundaki `Makine Birimi` alanı opsiyonel hale getirildi; UI default'u bos secime alindi, payload'da bos deger `null` gonderilecek sekilde guncellendi ve `013_make_machine_unit_optional.sql` ile DB kolonundaki `NOT NULL` kaldirildi.
+
+## Iteration: Parallel Dispatch Roles And Notes
+### Plan
+- [x] Rol modelini `raw_preparation` ve `machine_operator` olarak ayirip migration ile mevcut `hat` kullanicilarini birim grubuna gore tasimak
+- [x] Production order schema'sina `note_text` ve dispatch kayitlarina `unit_group` ekleyip ayni emir icin grup bazli acik gorev sinirini DB seviyesinde garanti altina almak
+- [x] Create, list ve detay akislarini ayni anda 1 `HAMMADDE` + 1 `MAKINE` gorev acabilecek sekilde guncellemek; note ve attachment gorunurlugunu rollere gore ayarlamak
+- [x] Admin panelini yeni rol seti ve role-gore birim filtreleme davranisiyla uyarlamak
+- [x] Unit testleri ekleyip `typecheck`, `test`, `build` ile davranisi dogrulamak
+
+### Review
+- `014_parallel_dispatch_roles_and_notes.sql` ile `role_type` enum'u `admin | production_manager | raw_preparation | machine_operator` modeline tasindi; mevcut `hat` kullanicilari bagli `production_units.unit_group` degerine gore yeni role map edildi.
+- `production_orders.note_text` ve `production_order_dispatches.unit_group` alanlari eklendi; `unit_group` trigger ile otomatik senkronize edildi ve partial unique index ile ayni emirde es zamanli olarak en fazla 1 acik `HAMMADDE` + 1 acik `MAKINE` dispatch garanti altina alindi.
+- Create akisi not alani, bos default'lu makine secimi ve grup bazli cift dispatch davranisiyla guncellendi; makine seciliyse emir olusurken hem hammadde hem makine tarafinda `pending` gorev aciliyor, bossa yalniz hammadde aciliyor.
+- Manager aktif emir detaylari iki ayri surec satiri/karti ile yeniden kuruldu; sevk kontrolleri grup bazli ayristirildi, order bitirme yalniz tum acik gorevler kapandiginda mumkun hale getirildi.
+- Attachment MIME whitelist'i PDF + gorsel + Word/Excel tiplerini kapsayacak sekilde genisletildi; `admin`, `production_manager` ve `raw_preparation` detaylarda ekleri gorurken `machine_operator` tarafinda attachment bolumu ve indirme erisimi kaldirildi.
+- Admin panelinde rol secenekleri yeni role setine uyarlandi; `raw_preparation` yalniz `HAMMADDE`, `machine_operator` yalniz `MAKINE` birimlerini secebiliyor.
+- Dogrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.

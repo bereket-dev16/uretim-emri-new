@@ -33,6 +33,17 @@ export const productionOrderCreateSchema = z.object({
   marketScope: z.enum(MARKET_SCOPE_VALUES),
   demandSource: z.enum(DEMAND_SOURCE_VALUES),
   packagingType: z.enum(PACKAGING_TYPE_VALUES),
+  noteText: z.preprocess(
+    (value) => {
+      if (typeof value !== 'string') {
+        return null;
+      }
+
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    },
+    z.string().max(2000, 'Not alanı en fazla 2000 karakter olabilir.').nullable()
+  ),
   plannedRawUnitCode: z.enum(RAW_UNIT_VALUES),
   plannedMachineUnitCode: z.preprocess(
     (value) => (value === '' || value == null ? null : value),

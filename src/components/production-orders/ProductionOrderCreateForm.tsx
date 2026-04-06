@@ -24,7 +24,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AttachmentList, buildOrderMetaRows } from './order-view';
+import { Textarea } from '@/components/ui/textarea';
+import { AttachmentList, buildOrderMetaRows, OrderNotePanel } from './order-view';
 
 interface ProductionOrderCreateFormProps {
   rawUnits: ProductionUnitDTO[];
@@ -45,17 +46,20 @@ interface FormState {
   marketScope: MarketScope;
   demandSource: DemandSource;
   packagingType: PackagingType;
+  noteText: string;
   plannedRawUnitCode: string;
   plannedMachineUnitCode: string;
 }
 
 const NO_MACHINE_UNIT = '__none__';
+const ATTACHMENT_ACCEPT =
+  '.pdf,.png,.jpg,.jpeg,.webp,.xls,.xlsx,.doc,.docx,application/pdf,image/png,image/jpeg,image/webp,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function createInitialForm(rawUnits: ProductionUnitDTO[], machineUnits: ProductionUnitDTO[]): FormState {
+function createInitialForm(rawUnits: ProductionUnitDTO[]): FormState {
   return {
     orderDate: todayIso(),
     orderNo: '',
@@ -70,6 +74,7 @@ function createInitialForm(rawUnits: ProductionUnitDTO[], machineUnits: Producti
     marketScope: 'ihracat',
     demandSource: 'numune',
     packagingType: 'kapsul',
+    noteText: '',
     plannedRawUnitCode: rawUnits[0]?.code ?? '',
     plannedMachineUnitCode: ''
   };
@@ -80,7 +85,7 @@ export function ProductionOrderCreateForm({
   machineUnits
 }: ProductionOrderCreateFormProps) {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(() => createInitialForm(rawUnits, machineUnits));
+  const [form, setForm] = useState<FormState>(() => createInitialForm(rawUnits));
   const [files, setFiles] = useState<File[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -102,6 +107,7 @@ export function ProductionOrderCreateForm({
       marketScope: form.marketScope,
       demandSource: form.demandSource,
       packagingType: form.packagingType,
+      noteText: form.noteText.trim() || null,
       plannedRawUnitCode: form.plannedRawUnitCode,
       plannedMachineUnitCode: form.plannedMachineUnitCode || null,
       status: 'active' as const,
@@ -166,6 +172,7 @@ export function ProductionOrderCreateForm({
         },
         body: JSON.stringify({
           ...form,
+          noteText: form.noteText.trim() || null,
           orderNo: Number(form.orderNo),
           orderQuantity: Number(form.orderQuantity),
           totalPackagingQuantity: Number(form.totalPackagingQuantity),
@@ -321,6 +328,16 @@ export function ProductionOrderCreateForm({
           </div>
         </section>
 
+        <section className="space-y-2">
+          <Label htmlFor="noteText">Not</Label>
+          <Textarea
+            id="noteText"
+            placeholder="Birimlerin görmesi gereken operasyon notunu buraya yazın."
+            value={form.noteText}
+            onChange={(event) => setField('noteText', event.target.value)}
+          />
+        </section>
+
         <section className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="mb-3">
@@ -344,7 +361,7 @@ export function ProductionOrderCreateForm({
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="mb-3">
               <div className="text-sm font-semibold text-slate-950">Makine Birimi</div>
-              <div className="mt-1 text-sm text-slate-600">İsterseniz önerilen sonraki adım olarak saklanır.</div>
+              <div className="mt-1 text-sm text-slate-600">Seçilirse emir oluşturulurken aynı anda ilk makine görevi de açılır.</div>
             </div>
             <Select
               value={form.plannedMachineUnitCode || NO_MACHINE_UNIT}
@@ -369,9 +386,9 @@ export function ProductionOrderCreateForm({
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="mb-3">
               <div className="text-sm font-semibold text-slate-950">Dosya Ekle</div>
-              <div className="mt-1 text-sm text-slate-600">Tek veya çoklu ek dosya yükleyebilirsiniz.</div>
+              <div className="mt-1 text-sm text-slate-600">PDF, görsel, Word ve Excel dosyaları yükleyebilirsiniz.</div>
             </div>
-            <Input type="file" multiple onChange={handleFileChange} />
+            <Input type="file" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFileChange} />
             {files.length > 0 ? (
               <div className="mt-3 space-y-1 text-sm text-slate-600">
                 {files.map((file) => (
@@ -409,6 +426,8 @@ export function ProductionOrderCreateForm({
                 </div>
               ))}
             </div>
+
+            <OrderNotePanel order={previewOrder} />
 
             <div className="space-y-3">
               <h3 className="text-base font-semibold text-slate-950">Ek Dosyalar</h3>

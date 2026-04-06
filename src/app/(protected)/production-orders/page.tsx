@@ -42,7 +42,7 @@ export default async function ProductionOrdersListPage({
       <PageIntro
         badge="Üretim"
         title="Devam Eden Emirler"
-        description="Aktif emirleri açın, sevk geçmişini izleyin ve açık adım tamamlandığında sonraki birime yönlendirin."
+        description="Aktif emirleri açın, hammadde ve makine süreçlerini ayrı ayrı izleyin ve boşta olan gruplara yeni sevk açın."
         actions={
           <Button asChild>
             <Link href="/production-orders/create">Yeni Emir</Link>
@@ -52,7 +52,7 @@ export default async function ProductionOrdersListPage({
 
       <SectionPanel
         title="Aktif Liste"
-        description="Kapalı görünümde özet, açık görünümde form alanları, ekler ve sevk tarihçesi yer alır."
+        description="Kapalı görünümde iki grup özeti, açık görünümde form alanları, not, ekler ve grup bazlı yönetim alanları yer alır."
         action={
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <span>Sayfa {page} / {totalPages}</span>
