@@ -146,11 +146,8 @@ const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
   'application/pdf',
   'image/png',
   'image/jpeg',
-  'image/webp',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  'image/jpg',
+  'image/webp'
 ]);
 
 const EXTENSION_MIME_TYPES: Record<string, string> = {
@@ -158,11 +155,7 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  webp: 'image/webp'
 };
 
 function toIsoDate(value: string | Date): string {
@@ -1087,7 +1080,7 @@ export async function addProductionOrderAttachment(
     throw new AppError({
       status: 400,
       code: 'ATTACHMENT_TYPE_NOT_ALLOWED',
-      publicMessage: 'Yalnız PDF, görsel, Word ve Excel dosyaları yüklenebilir.'
+      publicMessage: 'Yalnız PDF ve görsel dosyaları yüklenebilir.'
     });
   }
 

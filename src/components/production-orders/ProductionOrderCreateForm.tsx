@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -53,8 +54,46 @@ interface FormState {
 }
 
 const NO_MACHINE_UNIT = '__none__';
-const ATTACHMENT_ACCEPT =
-  '.pdf,.png,.jpg,.jpeg,.webp,.xls,.xlsx,.doc,.docx,application/pdf,image/png,image/jpeg,image/webp,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const ATTACHMENT_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/jpg,image/webp';
+const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+
+function isAllowedAttachmentFile(file: File): boolean {
+  if (file.type === 'application/pdf' || IMAGE_MIME_TYPES.has(file.type)) {
+    return true;
+  }
+
+  const lowerName = file.name.toLowerCase();
+  return ['.pdf', '.png', '.jpg', '.jpeg', '.webp'].some((extension) => lowerName.endsWith(extension));
+}
+
+function dedupeFiles(nextFiles: File[]): File[] {
+  const seen = new Set<string>();
+  const result: File[] = [];
+
+  for (const file of nextFiles) {
+    const key = `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(file);
+  }
+
+  return result;
+}
+
+function normalizeClipboardFile(file: File): File {
+  if (file.name) {
+    return file;
+  }
+
+  const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  return new File([file], `yapistirilan-gorsel-${Date.now()}.${extension}`, {
+    type: file.type || 'image/png',
+    lastModified: Date.now()
+  });
+}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -86,11 +125,13 @@ export function ProductionOrderCreateForm({
   machineUnits
 }: ProductionOrderCreateFormProps) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<FormState>(() => createInitialForm(rawUnits));
   const [files, setFiles] = useState<File[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 
   const previewOrder = useMemo(
     () => ({
@@ -135,8 +176,50 @@ export function ProductionOrderCreateForm({
     }));
   }
 
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    setFiles(Array.from(event.target.files ?? []));
+  function appendAttachmentFiles(selectedFiles: File[]) {
+    if (selectedFiles.length === 0) {
+      return;
+    }
+
+    const allowedFiles = selectedFiles.filter(isAllowedAttachmentFile);
+
+    if (allowedFiles.length !== selectedFiles.length) {
+      setErrorMessage('Ek dosya alanında yalnız PDF ve görsel yükleyebilirsiniz.');
+    } else {
+      setErrorMessage(null);
+    }
+
+    setFiles((current) => dedupeFiles([...current, ...allowedFiles]));
+  }
+
+  function removeAttachmentFile(index: number) {
+    setFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    appendAttachmentFiles(Array.from(event.target.files ?? []));
+    event.target.value = '';
+  }
+
+  function handleFileDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingFiles(false);
+    appendAttachmentFiles(Array.from(event.dataTransfer.files ?? []));
+  }
+
+  function handleFilePaste(event: ClipboardEvent<HTMLDivElement>) {
+    const clipboardFiles = Array.from(event.clipboardData.items ?? [])
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file))
+      .map(normalizeClipboardFile);
+
+    if (clipboardFiles.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    appendAttachmentFiles(clipboardFiles);
   }
 
   function validateBeforePreview() {
@@ -387,13 +470,61 @@ export function ProductionOrderCreateForm({
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="mb-3">
               <div className="text-sm font-semibold text-slate-950">Dosya Ekle</div>
-              <div className="mt-1 text-sm text-slate-600">PDF, görsel, Word ve Excel dosyaları yükleyebilirsiniz.</div>
+              <div className="mt-1 text-sm text-slate-600">
+                PDF veya görsel yükleyebilirsiniz. Word ve Excel dosyalarını önce{' '}
+                <Link href="/tools/pdf-convert" className="font-medium text-blue-700 underline underline-offset-2">
+                  PDF'e Çevir
+                </Link>{' '}
+                aracıyla dönüştürün. Ekran görüntülerini sürükleyip bırakabilir veya kopyalayıp buraya yapıştırabilirsiniz.
+              </div>
             </div>
-            <Input type="file" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFileChange} />
+            <Input ref={fileInputRef} type="file" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFileChange} className="hidden" />
+            <div
+              role="button"
+              tabIndex={0}
+              onDrop={handleFileDrop}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setIsDraggingFiles(true);
+              }}
+              onDragLeave={() => setIsDraggingFiles(false)}
+              onPaste={handleFilePaste}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              className={[
+                'flex min-h-[124px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-4 py-5 text-center outline-none transition-colors',
+                isDraggingFiles
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-slate-300 bg-slate-50 hover:border-slate-400'
+              ].join(' ')}
+            >
+              <div className="text-sm font-semibold text-slate-900">Dosyaları bırakın veya seçmek için tıklayın</div>
+              <div className="mt-2 max-w-sm text-xs leading-6 text-slate-500">
+                Desteklenen türler: PDF, PNG, JPG, WEBP. Kopyalanmış görsel varsa bu alana tıklayıp `Ctrl + V` / `Command + V` ile de ekleyebilirsiniz.
+              </div>
+            </div>
             {files.length > 0 ? (
-              <div className="mt-3 space-y-1 text-sm text-slate-600">
-                {files.map((file) => (
-                  <div key={`${file.name}-${file.size}`}>{file.name}</div>
+              <div className="mt-3 space-y-2">
+                {files.map((file, index) => (
+                  <div
+                    key={`${file.name}-${file.size}-${file.lastModified}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-slate-900">{file.name}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {Math.max(1, Math.round(file.size / 1024))} KB • {file.type || 'application/octet-stream'}
+                      </div>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => removeAttachmentFile(index)}>
+                      Kaldır
+                    </Button>
+                  </div>
                 ))}
               </div>
             ) : null}

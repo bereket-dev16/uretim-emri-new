@@ -106,3 +106,8 @@
 - Attachment yetkisi yalniz UI'da gizlenerek korunmamalidir; API listeleme ve indirme katmaninda da role gore attachment payload'i budanip erisim izni ayri permission ile korunmalidir.
 - Ek dosya UX'inde `Aç` ve `İndir` ayni linkte birlestirilmemelidir; `inline` ve `attachment` davranislari route seviyesinde query/headers ile ayrilirsa kullanici ne olacagini onceden anlar.
 - Paralel grup modeli varken `MAKINE` kolonu bos placeholder ile surekli gosterilirse yanlis "hazir gorev" algisi yaratir; gercekten secilmemis ve hic dispatch acilmamis grup tamamen gizlenmelidir.
+- Word/Excel dosyalarini order detail icinde dogrudan render etmeye calismak hizli prototip gibi gorunse de UX ve performans borcu biriktirir; operasyon ekranlari icin PDF-only attachment akisi daha stabil ve daha dusuk risklidir.
+- LibreOffice tabanli belge donusumu ana Next.js web surecinde degil, ayri bir converter serviste tutulursa polling ve emir ekranlarinin CPU/RAM davranisi daha tahmin edilebilir kalir.
+- PDF-only attachment politikasinda yalniz backend validation yetmez; file input `accept`, secim sonrasi UI filtreleme, yardimci metin ve storage MIME kisiti ayni anda daraltilmalidir.
+- Operasyon ekranlarinda ekran goruntusu ekleme ihtiyaci varsa dosya politikasi tamamen PDF'e kilitlenmemeli; PDF + yaygin gorsel tipleri birlikte kabul edilip Office dosyalari ayri bir converter aracina tasinmak daha dengeli bir cozumdur.
+- Clipboard paste ile gorsel ekleme isteniyorsa file input tek basina yeterli degildir; odaklanabilir dropzone, `clipboardData.items` okuma ve adsiz blob'lar icin anlamli fallback dosya adi uretimi birlikte gerekir.

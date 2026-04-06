@@ -730,3 +730,36 @@
 - Attachment download route'u `?download=1` query param'i ile `Content-Disposition: attachment` dondurecek sekilde guncellendi; boylece `Aç` ve `İndir` davranislari backend tarafinda da ayrildi.
 - Emirde makine secilmemisse ve makine tarafinda hic dispatch acilmamissa `MAKINE` grubu artik ozet satiri, surec karti ve yonetim bloklarinda gosterilmiyor; grup ancak secildiginde veya ilk sevk acildiginda gorunur hale geliyor.
 - Dogrulama: `corepack pnpm typecheck`, `corepack pnpm build` basarili.
+
+## Iteration: PDF Converter Tool And PDF-Only Attachments
+### Plan
+- [x] Uretim emri attachment kurallarini yalniz PDF kabul edecek sekilde daraltmak
+- [x] `admin` ve `production_manager` icin ayri `PDF'e Cevir` aracini ve protected API'yi eklemek
+- [x] LibreOffice headless tabanli ayri `converter` Docker servisini compose yapisina eklemek
+- [x] Converter env/doc ayarlarini ve RBAC testlerini guncellemek
+- [x] `typecheck`, `test`, `build` ile davranisi dogrulamak
+
+### Review
+- Uretim emri create ekranindaki dosya alani artik yalniz PDF kabul ediyor; Word/Excel dosyalari secilirse UI seviyesinde net hata veriliyor ve kullanici `PDF'e Cevir` aracina yonlendiriliyor.
+- `POST /api/tools/pdf-convert` ve `/tools/pdf-convert` eklenerek `admin` ve `production_manager` icin gecici donusum akisi kuruldu; kullanici Word/Excel dosyasini yukleyip ayni ekranda PDF preview aliyor ve PDF'i indirip sonra manuel attach ediyor.
+- `src/shared/pdf-converter/client.ts` ile web uygulamasi converter servisine timeout ve hata siniflandirmasi ile baglanacak sekilde soyutlandi; `rbac` varsayilan izinleri yeni araci yalniz yonetici rollerine verecek sekilde guncellendi.
+- `converter/server.mjs` ve `converter/Dockerfile` ile LibreOffice headless conversion ayri runtime'a tasindi; `docker-compose.yml` icinde `web` servisi ic agdaki `converter` servisine `CONVERTER_BASE_URL` ile baglanacak sekilde kuruldu.
+- Attachment preview katmani tekrar PDF odakli sade yapida korundu; eski Office-specific onizleme mantigi akistan cikarildi ve bucket tarafinda da yalniz PDF MIME kisiti kullanilacak model netlestirildi.
+- Dokumantasyon ve env ornekleri converter service / timeout degiskenleri ve yeni route ile guncellendi.
+- Dogrulama: `node --check converter/server.mjs`, `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.
+
+## Iteration: PDF And Image Attachments With Paste Support
+### Plan
+- [x] Production order attachment whitelist'ini PDF + gorsel dosyalari kabul edecek sekilde genisletmek
+- [x] Create formda dosya alanini drag-drop ve clipboard paste destekleyecek sekilde iyilestirmek
+- [x] Attachment preview dialogunu PDF ve gorsel dosyalar icin calisacak sekilde guncellemek
+- [x] Dokumantasyon ve mesajlari yeni politika ile hizalamak
+- [x] `typecheck`, `test`, `build` ile tekrar dogrulamak
+
+### Review
+- Uretim emri create ekranindaki dosya alani artik PDF yaninda PNG/JPG/WEBP gorselleri de kabul ediyor; dosyalar tiklayarak secilebiliyor, surukle-birak ile eklenebiliyor ve kopyalanmis ekran goruntuleri `Ctrl + V` / `Command + V` ile alana yapistirilabiliyor.
+- File input davranisi artik append + dedupe mantigi ile calisiyor; kullanici secilen dosyalari tek tek gorebiliyor ve isterse listeden `Kaldir` ile cikarabiliyor.
+- Backend attachment whitelist'i PDF + gorsel olacak sekilde guncellendi; hata mesaji da yalniz `PDF ve gorsel` kabul edildigini acikca soyluyor.
+- Attachment preview dialogu yeniden genisletildi; PDF'ler `iframe`, gorseller ise dogrudan buyuk onizleme ile aciliyor. Word/Excel ise ayrik `PDF'e Cevir` aracinda kalmaya devam ediyor.
+- Create sayfasi aciklamalari ve README ek dosya politikasini `PDF + gorsel`, Office dosyalari icin ayri converter araci olarak guncellendi.
+- Dogrulama: `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.

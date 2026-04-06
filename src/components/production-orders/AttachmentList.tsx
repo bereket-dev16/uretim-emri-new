@@ -19,6 +19,18 @@ function isPreviewableAttachment(mimeType: string): boolean {
   return mimeType === 'application/pdf' || mimeType.startsWith('image/');
 }
 
+function getAttachmentPreviewLabel(mimeType: string): string {
+  if (mimeType === 'application/pdf') {
+    return 'PDF önizleme';
+  }
+
+  if (mimeType.startsWith('image/')) {
+    return 'Görsel önizleme';
+  }
+
+  return 'Ek dosya önizleme';
+}
+
 function AttachmentPreviewDialog({
   open,
   onOpenChange,
@@ -46,7 +58,6 @@ function AttachmentPreviewDialog({
     }
 
     let disposed = false;
-
     setStatus('loading');
 
     void fetch(`/api/production-orders/${orderId}/attachments/${attachment.id}`, {
@@ -99,39 +110,32 @@ function AttachmentPreviewDialog({
           <DialogTitle>{attachment?.originalFilename ?? 'Ek Dosya'}</DialogTitle>
           <DialogDescription>
             {attachment
-              ? `${attachment.mimeType} • ${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB`
+              ? `${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB • ${getAttachmentPreviewLabel(attachment.mimeType)}`
               : 'Ek dosya önizlemesi'}
           </DialogDescription>
         </DialogHeader>
 
-        {attachment ? (
-          isPreviewableAttachment(attachment.mimeType) ? (
-            <div className="min-h-[420px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-              {status === 'loading' ? (
-                <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500">
-                  Önizleme hazırlanıyor...
-                </div>
-              ) : status === 'error' || !blobUrl ? (
-                <div className="flex min-h-[420px] items-center justify-center px-6 text-center text-sm text-slate-500">
-                  Önizleme açılamadı. Dosyayı indirerek görüntüleyebilirsiniz.
-                </div>
-              ) : attachment.mimeType.startsWith('image/') ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={blobUrl}
-                  alt={attachment.originalFilename}
-                  className="h-full max-h-[70vh] w-full object-contain"
-                />
-              ) : (
-                <iframe title={attachment.originalFilename} src={blobUrl} className="h-[70vh] w-full bg-white" />
-              )}
+        <div className="min-h-[420px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+          {status === 'loading' ? (
+            <div className="flex min-h-[420px] items-center justify-center text-sm text-slate-500">
+              Önizleme hazırlanıyor...
+            </div>
+          ) : status === 'error' || !blobUrl ? (
+            <div className="flex min-h-[420px] items-center justify-center px-6 text-center text-sm text-slate-500">
+              Önizleme açılamadı. Dosyayı indirerek görüntüleyebilirsiniz.
+            </div>
+          ) : attachment?.mimeType.startsWith('image/') ? (
+            <div className="flex min-h-[420px] items-center justify-center bg-white p-6">
+              <img
+                src={blobUrl}
+                alt={attachment.originalFilename}
+                className="max-h-[70vh] max-w-full rounded-lg object-contain"
+              />
             </div>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-600">
-              Bu dosya türü tarayıcı içinde önizlenemiyor. İndirme butonu ile cihazınıza alabilirsiniz.
-            </div>
-          )
-        ) : null}
+            <iframe title={attachment?.originalFilename ?? 'PDF'} src={blobUrl} className="h-[70vh] w-full bg-white" />
+          )}
+        </div>
 
         <DialogFooter>
           {attachment ? (

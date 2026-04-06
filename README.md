@@ -4,12 +4,13 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 
 ## Kapsam
 - Custom auth + HttpOnly session cookie
-- RBAC: `admin`, `production_manager`, `hat`
+- RBAC: `admin`, `production_manager`, `raw_preparation`, `machine_operator`
 - Üretim emri oluşturma
 - Aktif emir yönetimi
-- Hat kullanıcıları için gelen emir / devam eden emir ekranları
+- Operatör kullanıcıları için gelen emir / devam eden emir ekranları
 - Admin kullanıcı yönetimi
-- Supabase Storage üzerinden ek dosya yükleme
+- Supabase Storage üzerinden PDF ve görsel ek dosya yükleme
+- Word/Excel için ayrı PDF dönüştürme aracı
 
 ## Kurulum
 1. `.env.example` dosyasını `.env` olarak kopyalayın.
@@ -23,11 +24,14 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 6. `db/bootstrap/01_first_admin_template.sql` içindeki placeholder alanları doldurup çalıştırın.
 7. Uygulamayı başlatın:
    - `pnpm dev`
+8. Word/Excel -> PDF aracı kullanacaksanız ayrı converter servisini de başlatın:
+   - `pnpm converter:dev`
 
 ## Roller
 - `admin`: tüm ekranlar ve admin paneli
-- `production_manager`: dashboard, create, aktif emirler, biten emirler
-- `hat`: gelen emirler, devam eden emirler
+- `production_manager`: dashboard, create, PDF aracı, aktif emirler, biten emirler
+- `raw_preparation`: gelen emirler, devam eden emirler, PDF attachment görüntüleme
+- `machine_operator`: gelen emirler, devam eden emirler
 
 ## Ana Route'lar
 - `/dashboard`
@@ -36,6 +40,7 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 - `/production-orders/completed`
 - `/production-orders/incoming`
 - `/production-orders/tasks`
+- `/tools/pdf-convert`
 - `/admin/users`
 
 ## API
@@ -52,6 +57,7 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 - `POST /api/production-orders/dispatches/:dispatchId/complete`
 - `POST /api/production-orders/:id/attachments`
 - `GET /api/production-orders/:id/attachments/:attachmentId`
+- `POST /api/tools/pdf-convert`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/:id`
@@ -67,6 +73,7 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 - Kontrol:
   - `docker compose ps`
   - `docker compose logs web --tail 50`
+  - `docker compose logs converter --tail 50`
 
 ## Doğrulama
 - `pnpm typecheck`

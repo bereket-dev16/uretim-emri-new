@@ -1,17 +1,15 @@
-import Image from 'next/image';
-
 import { LoginForm } from '@/components/auth/LoginForm';
 
 export default function LoginPage() {
   return (
     <main className="grid min-h-screen bg-slate-100 lg:grid-cols-[1.15fr_0.85fr]">
       <section className="relative hidden items-center justify-center bg-white lg:flex">
-        <Image
+        {/* Plain img avoids false-negative local image validation from next/image in some runtime modes. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src="/bereket-logo.png"
           alt="Bereket Logo"
-          fill
-          priority
-          className="object-contain p-16"
+          className="h-full w-full object-contain p-16"
         />
       </section>
 
