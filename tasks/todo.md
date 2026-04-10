@@ -797,3 +797,35 @@
 - `package.json` icine `bench:prepare`, `bench:cleanup` ve `bench:flow` komutlari eklendi; `README.md` uzerinden Windows Docker adresi ile benchmark hazirlama, kosma ve temizleme adimlari net komutlarla belgelendi.
 - Benchmark hazirlik scriptindeki `production_units.unit_group` okuma hatasi duzeltilerek `SIVI_KARISIM`, `TOZ_KARISIM` ve `SOFTJEL` birimlerinin yeniden `raw_preparation` olarak uretilmesi saglandi; ayni turda `Dockerfile` runner image'ina `/app/scripts` klasoru kopyalanarak benchmark komutlarinin `docker compose exec web node /app/scripts/...` ile calisabilmesi kalici hale getirildi.
 - Dogrulama: `node --check scripts/benchmark-lib.mjs`, `node --check scripts/prepare-benchmark-users.mjs`, `node --check scripts/cleanup-benchmark-data.mjs`, `node --check scripts/benchmark-production-flow.mjs`, `corepack pnpm typecheck`, `corepack pnpm test`, `corepack pnpm build` basarili.
+
+## Iteration: Manager Batch Redispatch Flow
+### Plan
+- [x] Uretim emri olusturma akisi ile aktif emirde sonraki sevk akisinin ayrildigini domain notlariyla tekrar teyit etmek
+- [x] Aktif emir detayinda grup bazli iki satirlik sevk UI'ini kaldirip tek batch sevk editorune gecmek
+- [x] Mudurun tek seferde bir veya daha fazla birim secebilmesini ve kullanilmis birimlerin pasif kalmasini saglamak
+- [x] Backend dispatch kontratini `unitCodes[]` batch mantigina cevirip acik gorev varken yeni batch sevki kapatmak
+- [x] Migration, schema testleri ve dogrulamayi (`test`, `build`, `typecheck`) tamamlamak
+
+### Review
+- Uretim emri olusturma ekranindaki ilk sevk mantigi korunurken, aktif emir detayindaki yonetim islemleri tek bir `Gonderilecek Birimler` editorune donusturuldu; mudur acik gorevler kapandiginda tum aktif birimleri tek listede gorup isterse `Birim Ekle` ile ayni batch'e ek hedefler secerek gonderim yapabiliyor.
+- Yeni batch sevk akisi order bazli calisiyor: emirde herhangi bir `pending/in_progress` dispatch varken yeni batch acilmiyor; once mevcut batch tamamlanip satir yesile dustugunde sonraki batch seciliyor.
+- Daha once kullanilan birimler dropdown'da `kullanildi`, ayni batch icinde baska satirda secilen birimler ise `secildi` etiketiyle disable gosteriliyor; ayni order ayni birime ikinci kez gidemiyor.
+- Backend dispatch route'u artik `{ unitCodes: [...] }` kontratini kabul ediyor; `productionOrderDispatchCreateSchema` tekli `unitCode` payload'ini da geriye donuk uyum icin `unitCodes` dizisine normalize ediyor.
+- `015_allow_multi_batch_dispatches.sql` migration'i ile eski `production_order_id + unit_group` acik-gorev unique index'i dusuruldu; yeni kural artik ayni anda acik gorev varsa hic yeni batch acilmamasi ve ayni birime tekrar gidilmemesi uzerinden ilerliyor.
+- Dogrulama: `corepack pnpm test`, `corepack pnpm build` basarili; `corepack pnpm typecheck` ilk turda stale `.next/types` yuzunden dustu, build sonrasi tekrar alinarak temiz gecildi.
+
+## Iteration: Active Order Permanent Delete
+### Plan
+- [x] Aktif emrin DB, dispatch ve attachment etkilerini incelemek; kalıcı silmede hangi kayıtların cascade ile temizleneceğini netleştirmek
+- [x] Üretim emri detail API’sine çift doğrulamalı kalıcı silme endpoint’i eklemek
+- [x] Yönetim işlemlerine iki aşamalı onaylı `Emri Sil` akışı eklemek
+- [x] Attachment storage temizliğini best-effort olarak silme akışına bağlamak
+- [x] `test`, `build`, `typecheck` ile davranışı doğrulamak
+
+### Review
+- Aktif order detail route’una `DELETE /api/production-orders/[id]` eklendi; route `orderNo + confirmationText=SIL` doğrulaması olmadan silmeye izin vermiyor.
+- Backend’de `deleteProductionOrder` servisi aktif order’ı DB’den kalıcı siliyor; `production_orders` silinince dispatch ve attachment satırları FK `ON DELETE CASCADE` ile temizleniyor, attachment storage objeleri ise commit sonrası best-effort olarak siliniyor.
+- Yönetim işlemlerine `Emri Sil` butonu eklendi; kullanıcı modal içinde hem iş emri numarasını hem `SIL` metnini girmeden destructive buton aktif olmuyor.
+- Silinen emir aktif liste ve dolayısıyla ilgili birim ekranlarından da düşüyor; kullanıcıya bunun kalıcı olduğu açık mesajla gösteriliyor.
+- `productionOrderDeleteSchema` ve ilgili unit testler eklendi.
+- Dogrulama: `corepack pnpm test`, `corepack pnpm build`, `corepack pnpm typecheck` basarili.

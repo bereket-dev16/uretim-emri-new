@@ -54,13 +54,18 @@ interface CreateProductionOrderParams {
 
 interface DispatchProductionOrderParams {
   id: string;
-  unitCode: ProductionUnit;
+  unitCodes: ProductionUnit[];
   actorUserId: string;
 }
 
 interface FinishProductionOrderParams {
   id: string;
   actorUserId: string;
+}
+
+interface DeleteProductionOrderParams {
+  id: string;
+  orderNo: number;
 }
 
 interface AcceptDispatchParams {
@@ -139,6 +144,10 @@ interface AttachmentDownloadRecord {
   id: string;
   original_filename: string;
   mime_type: string;
+  storage_path: string;
+}
+
+interface OrderAttachmentStorageRow extends QueryResultRow {
   storage_path: string;
 }
 
@@ -814,44 +823,58 @@ export async function dispatchProductionOrder(
 ): Promise<ProductionOrderListItemDTO> {
   return withTransaction(async (client) => {
     const order = await ensureActiveOrder(client, params.id);
-    const unit = await getUnitWithClient(client, params.unitCode);
+    const unitCodes = [...new Set(params.unitCodes)];
 
-    if (!unit || !unit.is_active) {
+    if (unitCodes.length === 0) {
       throw new AppError({
         status: 400,
-        code: 'UNIT_NOT_FOUND',
-        publicMessage: 'Sevk edilecek birim bulunamadı.'
+        code: 'DISPATCH_TARGET_REQUIRED',
+        publicMessage: 'Gönderilecek en az bir birim seçin.'
       });
     }
 
-    if (order.dispatches.some((dispatch) => dispatch.unitCode === params.unitCode)) {
+    if (getOpenDispatches(order).length > 0) {
       throw new AppError({
         status: 409,
-        code: 'DISPATCH_ALREADY_EXISTS',
-        publicMessage: 'Bu üretim emri aynı birime tekrar gönderilemez.'
+        code: 'DISPATCH_OPEN_TASK_EXISTS',
+        publicMessage: 'Açık görevler tamamlanmadan yeni sevk açılamaz.'
       });
     }
 
-    if (getOpenDispatches(order, unit.unit_group).length > 0) {
-      throw new AppError({
-        status: 409,
-        code: 'DISPATCH_GROUP_BUSY',
-        publicMessage: 'Aynı grupta açık bir görev varken yeni sevk açılamaz.'
-      });
+    for (const unitCode of unitCodes) {
+      const unit = await getUnitWithClient(client, unitCode);
+
+      if (!unit || !unit.is_active) {
+        throw new AppError({
+          status: 400,
+          code: 'UNIT_NOT_FOUND',
+          publicMessage: 'Sevk edilecek birim bulunamadı.'
+        });
+      }
+
+      if (order.dispatches.some((dispatch) => dispatch.unitCode === unitCode)) {
+        throw new AppError({
+          status: 409,
+          code: 'DISPATCH_ALREADY_EXISTS',
+          publicMessage: `${getProductionUnitLabel(unitCode, unit.name)} birimi bu üretim emrinde daha önce kullanıldı.`
+        });
+      }
     }
 
-    await client.query(
-      `
-        INSERT INTO production_order_dispatches (
-          production_order_id,
-          unit_code,
-          status,
-          dispatched_by
-        )
-        VALUES ($1::uuid, $2, 'pending', $3::uuid)
-      `,
-      [params.id, params.unitCode, params.actorUserId]
-    );
+    for (const unitCode of unitCodes) {
+      await client.query(
+        `
+          INSERT INTO production_order_dispatches (
+            production_order_id,
+            unit_code,
+            status,
+            dispatched_by
+          )
+          VALUES ($1::uuid, $2, 'pending', $3::uuid)
+        `,
+        [params.id, unitCode, params.actorUserId]
+      );
+    }
 
     const updatedOrder = await getOrderByIdWithClient(client, params.id);
 
@@ -867,14 +890,11 @@ export async function dispatchProductionOrder(
   }).catch((error) => {
     const pgError = error as { code?: string; constraint?: string };
 
-    if (
-      pgError.code === '23505' &&
-      pgError.constraint === 'idx_production_order_dispatches_open_group_unique'
-    ) {
+    if (pgError.code === '23505') {
       throw new AppError({
         status: 409,
-        code: 'DISPATCH_GROUP_BUSY',
-        publicMessage: 'Aynı grupta açık bir görev varken yeni sevk açılamaz.'
+        code: 'DISPATCH_ALREADY_EXISTS',
+        publicMessage: 'Seçilen birimlerden en az biri bu üretim emrinde daha önce kullanıldı.'
       });
     }
 
@@ -918,6 +938,62 @@ export async function finishProductionOrder(
 
     return updatedOrder;
   });
+}
+
+export async function deleteProductionOrder(params: DeleteProductionOrderParams): Promise<{
+  id: string;
+  orderNo: number;
+}> {
+  const deletedOrder = await withTransaction(async (client) => {
+    const order = await ensureActiveOrder(client, params.id);
+
+    if (order.orderNo !== params.orderNo) {
+      throw new AppError({
+        status: 409,
+        code: 'ORDER_DELETE_CONFIRMATION_MISMATCH',
+        publicMessage: 'Silme onayı doğrulanamadı. İş emri numarasını tekrar kontrol edin.'
+      });
+    }
+
+    const attachmentResult = await client.query<OrderAttachmentStorageRow>(
+      `
+        SELECT storage_path
+        FROM production_order_attachments
+        WHERE production_order_id = $1::uuid
+      `,
+      [params.id]
+    );
+
+    await client.query(
+      `
+        DELETE FROM production_orders
+        WHERE id = $1::uuid
+      `,
+      [params.id]
+    );
+
+    return {
+      id: order.id,
+      orderNo: order.orderNo,
+      attachmentPaths: attachmentResult.rows.map((row) => row.storage_path)
+    };
+  });
+
+  const cleanupResults = await Promise.allSettled(
+    deletedOrder.attachmentPaths.map((path) => deleteStorageObject(path))
+  );
+  const failedCleanupCount = cleanupResults.filter((result) => result.status === 'rejected').length;
+
+  if (failedCleanupCount > 0) {
+    console.error(
+      `[production-order-delete] ${deletedOrder.id} icin ${failedCleanupCount} attachment storage kaydi temizlenemedi.`
+    );
+  }
+
+  return {
+    id: deletedOrder.id,
+    orderNo: deletedOrder.orderNo
+  };
 }
 
 export async function acceptProductionOrderDispatch(

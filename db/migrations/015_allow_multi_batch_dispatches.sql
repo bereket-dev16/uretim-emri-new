@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_production_order_dispatches_open_group_unique;

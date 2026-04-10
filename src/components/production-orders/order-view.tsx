@@ -96,6 +96,21 @@ export function getDisplayDispatchForGroup(
   return getOpenDispatchForGroup(order, group) ?? getLastDispatchForGroup(order, group);
 }
 
+export function getOpenDispatches(order: ProductionOrderListItemDTO): ProductionOrderDispatchDTO[] {
+  return order.dispatches.filter(
+    (dispatch) => dispatch.status === 'pending' || dispatch.status === 'in_progress'
+  );
+}
+
+function getOpenDispatchesForGroup(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): ProductionOrderDispatchDTO[] {
+  return getDispatchesForGroup(order, group).filter(
+    (dispatch) => dispatch.status === 'pending' || dispatch.status === 'in_progress'
+  );
+}
+
 export function getCurrentDispatch(order: ProductionOrderListItemDTO): ProductionOrderDispatchDTO | null {
   return (
     order.dispatches.find((dispatch) => dispatch.status === 'in_progress') ??
@@ -106,9 +121,7 @@ export function getCurrentDispatch(order: ProductionOrderListItemDTO): Productio
 }
 
 export function hasAnyOpenDispatch(order: ProductionOrderListItemDTO): boolean {
-  return order.dispatches.some(
-    (dispatch) => dispatch.status === 'pending' || dispatch.status === 'in_progress'
-  );
+  return getOpenDispatches(order).length > 0;
 }
 
 export function hasOpenDispatchForGroup(
@@ -123,13 +136,20 @@ export function getOrderStateLabel(order: ProductionOrderListItemDTO): string {
     return 'Bitti';
   }
 
-  const summary = getVisibleGroups(order).map((group) => {
-    const dispatch = getDisplayDispatchForGroup(order, group);
-    const label = dispatch ? getDispatchStatusLabel(dispatch.status) : 'Hazır';
-    return `${PRODUCTION_UNIT_GROUP_LABELS[group]}: ${label}`;
-  });
+  const openDispatches = getOpenDispatches(order);
 
-  return summary.join(' • ');
+  if (openDispatches.length === 0) {
+    return order.dispatches.length > 0 ? 'Müdür aksiyonu bekliyor' : 'Hazır';
+  }
+
+  const statuses = [...new Set(openDispatches.map((dispatch) => dispatch.status))];
+
+  if (statuses.length === 1) {
+    const label = statuses[0] === 'pending' ? 'Bekliyor' : 'Çalışıyor';
+    return `${openDispatches.length} birim ${label.toLocaleLowerCase('tr-TR')}`;
+  }
+
+  return `${openDispatches.length} açık görev • Karışık durum`;
 }
 
 export function getOrderRowTone(order: ProductionOrderListItemDTO): OrderRowTone {
@@ -137,17 +157,13 @@ export function getOrderRowTone(order: ProductionOrderListItemDTO): OrderRowTone
     return 'completed';
   }
 
-  const statuses = getVisibleGroups(order)
-    .map((group) => getDisplayDispatchForGroup(order, group)?.status)
-    .filter((status): status is ProductionOrderDispatchDTO['status'] => Boolean(status));
+  const openDispatches = getOpenDispatches(order);
 
-  if (statuses.length === 0) {
-    return 'neutral';
+  if (openDispatches.length === 0) {
+    return order.dispatches.length > 0 ? 'completed' : 'neutral';
   }
 
-  if (statuses.every((status) => status === 'completed')) {
-    return 'completed';
-  }
+  const statuses = openDispatches.map((dispatch) => dispatch.status);
 
   if (statuses.every((status) => status === 'pending')) {
     return 'pending';
@@ -268,26 +284,32 @@ export function buildOrderMetaRows(order: ProductionOrderListItemDTO) {
 
 export function availableDispatchTargets(
   order: ProductionOrderListItemDTO,
-  units: ProductionUnitDTO[],
-  group: ProductionUnitGroup
-): Array<ProductionUnitDTO & { disabled: boolean }> {
+  units: ProductionUnitDTO[]
+): Array<
+  ProductionUnitDTO & {
+    disabled: boolean;
+    disabledBecauseUsed: boolean;
+  }
+> {
   const usedUnits = new Set(order.dispatches.map((dispatch) => dispatch.unitCode));
 
-  return units
-    .filter((unit) => unit.unitGroup === group)
-    .map((unit) => ({
+  return units.map((unit) => {
+    const disabledBecauseUsed = usedUnits.has(unit.code);
+
+    return {
       ...unit,
-      disabled: usedUnits.has(unit.code)
-    }));
+      disabled: disabledBecauseUsed,
+      disabledBecauseUsed
+    };
+  });
 }
 
 export function suggestedDispatchUnit(
   order: ProductionOrderListItemDTO,
-  units: ProductionUnitDTO[],
-  group: ProductionUnitGroup
+  units: ProductionUnitDTO[]
 ): string | null {
-  const targets = availableDispatchTargets(order, units, group);
-  const preferredCode = group === 'HAMMADDE' ? order.plannedRawUnitCode : order.plannedMachineUnitCode;
+  const targets = availableDispatchTargets(order, units);
+  const preferredCode = order.plannedMachineUnitCode ?? order.plannedRawUnitCode;
 
   if (!preferredCode) {
     return null;
@@ -300,6 +322,91 @@ export function suggestedDispatchUnit(
   }
 
   return null;
+}
+
+function summarizeDispatchUnits(dispatches: ProductionOrderDispatchDTO[]): string {
+  if (dispatches.length === 0) {
+    return '-';
+  }
+
+  if (dispatches.length === 1) {
+    return getProductionUnitLabel(dispatches[0].unitCode, dispatches[0].unitName);
+  }
+
+  return `${getProductionUnitLabel(dispatches[0].unitCode, dispatches[0].unitName)} +${dispatches.length - 1}`;
+}
+
+function getDispatchCollectionLabel(
+  order: ProductionOrderListItemDTO,
+  dispatches: ProductionOrderDispatchDTO[]
+): string {
+  if (dispatches.length === 0) {
+    return order.status === 'completed' ? 'Bitti' : 'Hazır';
+  }
+
+  const statuses = [...new Set(dispatches.map((dispatch) => dispatch.status))];
+
+  if (statuses.length === 1) {
+    return getDispatchStatusLabel(statuses[0]);
+  }
+
+  return 'Karışık';
+}
+
+function getDispatchCollectionTone(
+  order: ProductionOrderListItemDTO,
+  dispatches: ProductionOrderDispatchDTO[]
+): ReturnType<typeof getStatusTone> {
+  if (dispatches.length === 0) {
+    return order.status === 'completed' ? 'finished' : 'finished';
+  }
+
+  const statuses = [...new Set(dispatches.map((dispatch) => dispatch.status))];
+
+  if (statuses.length === 1) {
+    return getStatusTone(statuses[0]);
+  }
+
+  return statuses.includes('in_progress') ? 'in_progress' : 'pending';
+}
+
+export function getGroupDispatchSummary(
+  order: ProductionOrderListItemDTO,
+  group: ProductionUnitGroup
+): {
+  unitLabel: string;
+  statusLabel: string;
+  statusTone: ReturnType<typeof getStatusTone>;
+  dispatchCount: number;
+} {
+  const openDispatches = getOpenDispatchesForGroup(order, group);
+
+  if (openDispatches.length > 0) {
+    return {
+      unitLabel: summarizeDispatchUnits(openDispatches),
+      statusLabel: getDispatchCollectionLabel(order, openDispatches),
+      statusTone: getDispatchCollectionTone(order, openDispatches),
+      dispatchCount: openDispatches.length
+    };
+  }
+
+  const dispatches = getDispatchesForGroup(order, group);
+
+  if (dispatches.length === 0) {
+    return {
+      unitLabel: '-',
+      statusLabel: order.status === 'completed' ? 'Bitti' : 'Hazır',
+      statusTone: order.status === 'completed' ? 'finished' : 'finished',
+      dispatchCount: 0
+    };
+  }
+
+  return {
+    unitLabel: summarizeDispatchUnits(dispatches.slice(-Math.min(dispatches.length, 2))),
+    statusLabel: 'Tamamlandı',
+    statusTone: 'completed',
+    dispatchCount: dispatches.length
+  };
 }
 
 export function OrderSummaryLine({ order }: { order: ProductionOrderListItemDTO }) {
@@ -324,21 +431,19 @@ export function OrderSummaryLine({ order }: { order: ProductionOrderListItemDTO 
         <div className="mt-1 text-sm text-slate-700">{formatDate(order.deadlineDate)}</div>
       </div>
       {visibleGroups.map((group) => {
-        const dispatch = getDisplayDispatchForGroup(order, group);
+        const summary = getGroupDispatchSummary(order, group);
 
         return (
           <div key={group} className="space-y-1">
             <div className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">
               {PRODUCTION_UNIT_GROUP_LABELS[group]}
             </div>
-            <div className="text-sm text-slate-700">
-              {dispatch ? getProductionUnitLabel(dispatch.unitCode, dispatch.unitName) : '-'}
-            </div>
+            <div className="text-sm text-slate-700">{summary.unitLabel}</div>
             <span
               className="status-chip"
-              data-status={getStatusTone(order.status === 'completed' && !dispatch ? 'finished' : dispatch?.status ?? 'finished')}
+              data-status={summary.statusTone}
             >
-              {order.status === 'completed' && !dispatch ? 'Bitti' : dispatch ? getDispatchStatusLabel(dispatch.status) : 'Hazır'}
+              {summary.statusLabel}
             </span>
           </div>
         );
@@ -387,9 +492,11 @@ export function DispatchGroupOverview({ order }: { order: ProductionOrderListIte
   return (
     <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
       {visibleGroups.map((group) => {
-        const openDispatch = getOpenDispatchForGroup(order, group);
+        const openDispatches = getOpenDispatchesForGroup(order, group);
         const lastDispatch = getLastDispatchForGroup(order, group);
-        const displayDispatch = openDispatch ?? lastDispatch;
+        const displayDispatches =
+          openDispatches.length > 0 ? openDispatches : lastDispatch ? [lastDispatch] : [];
+        const displayDispatch = displayDispatches[0] ?? null;
 
         return (
           <div
@@ -401,17 +508,22 @@ export function DispatchGroupOverview({ order }: { order: ProductionOrderListIte
                 {PRODUCTION_UNIT_GROUP_LABELS[group]}
               </div>
               <div className="text-sm text-slate-900">
-                {displayDispatch
-                  ? getProductionUnitLabel(displayDispatch.unitCode, displayDispatch.unitName)
-                  : 'Henüz başlatılmadı.'}
+                {displayDispatch ? summarizeDispatchUnits(displayDispatches) : 'Henüz başlatılmadı.'}
               </div>
             </div>
             <div className="text-sm text-slate-600">
               {displayDispatch ? (
-                <div className="grid gap-1 sm:grid-cols-2">
-                  <div>Gönderim: {formatDateTime(displayDispatch.dispatchedAt)}</div>
-                  <div>Bitiş: {formatDateTime(displayDispatch.completedAt)}</div>
-                </div>
+                openDispatches.length > 1 ? (
+                  <div className="space-y-1">
+                    <div>{openDispatches.length} acik görev bu grupta paralel ilerliyor.</div>
+                    <div>Ilk gönderim: {formatDateTime(displayDispatch.dispatchedAt)}</div>
+                  </div>
+                ) : (
+                  <div className="grid gap-1 sm:grid-cols-2">
+                    <div>Gönderim: {formatDateTime(displayDispatch.dispatchedAt)}</div>
+                    <div>Bitiş: {formatDateTime(displayDispatch.completedAt)}</div>
+                  </div>
+                )
               ) : (
                 'Bu grup için henüz işlem açılmadı.'
               )}
@@ -419,13 +531,9 @@ export function DispatchGroupOverview({ order }: { order: ProductionOrderListIte
             <div className="lg:justify-self-end">
               <span
                 className="status-chip"
-                data-status={getStatusTone(displayDispatch?.status ?? (order.status === 'completed' ? 'finished' : 'pending'))}
+                data-status={getDispatchCollectionTone(order, displayDispatches)}
               >
-                {displayDispatch
-                  ? getDispatchStatusLabel(displayDispatch.status)
-                  : order.status === 'completed'
-                    ? 'Bitti'
-                    : 'Hazır'}
+                {getDispatchCollectionLabel(order, displayDispatches)}
               </span>
             </div>
           </div>

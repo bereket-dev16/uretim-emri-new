@@ -9,16 +9,14 @@ import {
   DispatchGroupOverview,
   DispatchHistoryTable,
   formatDate,
-  getDisplayDispatchForGroup,
+  getGroupDispatchSummary,
   getOrderStateLabel,
   getOrderRowTone,
   getRowToneClasses,
   getVisibleGroups,
   hasAnyOpenDispatch,
-  hasOpenDispatchForGroup,
   OrderMetaGrid,
-  OrderNotePanel,
-  suggestedDispatchUnit
+  OrderNotePanel
 } from './order-view';
 import { AttachmentList } from './AttachmentList';
 import {
@@ -34,13 +32,10 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type {
-  ProductionOrderListItemDTO,
-  ProductionUnitDTO,
-  ProductionUnitGroup
-} from '@/shared/types/domain';
+import type { ProductionOrderListItemDTO, ProductionUnitDTO } from '@/shared/types/domain';
 import { PRODUCTION_UNIT_GROUP_LABELS, getProductionUnitLabel } from '@/modules/production-orders/constants';
 
 interface ProductionOrderCardListProps {
@@ -53,12 +48,25 @@ interface ProductionOrderCardListProps {
 
 interface DispatchDialogTarget {
   order: ProductionOrderListItemDTO;
-  group: ProductionUnitGroup;
+  unitCodes: string[];
 }
 
 const EMPTY_PRODUCTION_UNITS: ProductionUnitDTO[] = [];
-function selectionKey(orderId: string, group: ProductionUnitGroup): string {
-  return `${orderId}:${group}`;
+
+function selectionKey(orderId: string): string {
+  return orderId;
+}
+
+function normalizeDispatchSelections(value?: string[]): string[] {
+  return value && value.length > 0 ? value : [''];
+}
+
+function areSelectionsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function getSelectedUnitCodes(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
 }
 
 export function ProductionOrderCardList({
@@ -70,12 +78,15 @@ export function ProductionOrderCardList({
 }: ProductionOrderCardListProps) {
   const [items, setItems] = useState(initialItems);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [dispatchSelections, setDispatchSelections] = useState<Record<string, string>>({});
+  const [dispatchSelections, setDispatchSelections] = useState<Record<string, string[]>>({});
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [dispatchTarget, setDispatchTarget] = useState<DispatchDialogTarget | null>(null);
   const [finishTarget, setFinishTarget] = useState<ProductionOrderListItemDTO | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProductionOrderListItemDTO | null>(null);
+  const [deleteOrderNoInput, setDeleteOrderNoInput] = useState('');
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
 
   useEffect(() => {
     setItems(initialItems);
@@ -91,20 +102,18 @@ export function ProductionOrderCardList({
       let changed = false;
 
       for (const order of initialItems) {
-        for (const group of getVisibleGroups(order)) {
-          const key = selectionKey(order.id, group);
-          const nextValue = current[key] ?? suggestedDispatchUnit(order, productionUnits, group) ?? '';
+        const key = selectionKey(order.id);
+        const nextValue = normalizeDispatchSelections(current[key]);
 
-          if (next[key] !== nextValue) {
-            next[key] = nextValue;
-            changed = true;
-          }
+        if (!areSelectionsEqual(next[key] ?? [], nextValue)) {
+          next[key] = nextValue;
+          changed = true;
         }
       }
 
       return changed ? next : current;
     });
-  }, [initialItems, productionUnits, scope]);
+  }, [initialItems, scope]);
 
   useEffect(() => {
     if (scope === 'completed') {
@@ -178,10 +187,10 @@ export function ProductionOrderCardList({
       return;
     }
 
-    const unitCode = dispatchSelections[selectionKey(dispatchTarget.order.id, dispatchTarget.group)];
+    const unitCodes = getSelectedUnitCodes(dispatchTarget.unitCodes);
 
-    if (!unitCode) {
-      setErrorMessage('Gönderilecek birim seçin.');
+    if (unitCodes.length === 0) {
+      setErrorMessage('Gönderilecek en az bir birim seçin.');
       return;
     }
 
@@ -196,7 +205,7 @@ export function ProductionOrderCardList({
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ unitCode })
+        body: JSON.stringify({ unitCodes })
       });
       const payload = await response.json();
 
@@ -208,8 +217,19 @@ export function ProductionOrderCardList({
       setItems((current) =>
         current.map((item) => (item.id === dispatchTarget.order.id ? (payload.item as ProductionOrderListItemDTO) : item))
       );
+      setDispatchSelections((current) => ({
+        ...current,
+        [selectionKey(dispatchTarget.order.id)]: ['']
+      }));
       setStatusMessage(
-        `${PRODUCTION_UNIT_GROUP_LABELS[dispatchTarget.group]} grubu için emir ${getProductionUnitLabel(unitCode)} birimine gönderildi.`
+        `Emir şu birimlere gönderildi: ${unitCodes
+          .map((unitCode) => {
+            const targetUnit = productionUnits.find((unit) => unit.code === unitCode);
+            return targetUnit
+              ? `${getProductionUnitLabel(unitCode, targetUnit.name)} (${PRODUCTION_UNIT_GROUP_LABELS[targetUnit.unitGroup]})`
+              : getProductionUnitLabel(unitCode);
+          })
+          .join(', ')}.`
       );
       setDispatchTarget(null);
     } catch {
@@ -247,6 +267,48 @@ export function ProductionOrderCardList({
       );
       setStatusMessage(`Emir #${finishTarget.orderNo} tamamlandı olarak kapatıldı.`);
       setFinishTarget(null);
+    } catch {
+      setErrorMessage('Sunucuya erişilemedi.');
+    } finally {
+      setBusyOrderId(null);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setBusyOrderId(deleteTarget.id);
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const response = await fetch(`/api/production-orders/${deleteTarget.id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          orderNo: Number(deleteOrderNoInput),
+          confirmationText: deleteConfirmationText
+        })
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(payload.error?.message ?? 'Emir silinemedi.');
+        return;
+      }
+
+      setItems((current) => current.filter((item) => item.id !== deleteTarget.id));
+      setStatusMessage(
+        `Emir #${deleteTarget.orderNo} kalıcı olarak silindi ve ilgili birim ekranlarından kaldırıldı.`
+      );
+      setDeleteTarget(null);
+      setDeleteOrderNoInput('');
+      setDeleteConfirmationText('');
     } catch {
       setErrorMessage('Sunucuya erişilemedi.');
     } finally {
@@ -294,9 +356,14 @@ export function ProductionOrderCardList({
             const orderHasOpenDispatch = hasAnyOpenDispatch(order);
             const visibleGroups = getVisibleGroups(order);
             const toneClasses = getRowToneClasses(getOrderRowTone(order));
-            const rawDispatch = getDisplayDispatchForGroup(order, 'HAMMADDE');
-            const machineDispatch = visibleGroups.includes('MAKINE')
-              ? getDisplayDispatchForGroup(order, 'MAKINE')
+            const dispatchTargets = availableDispatchTargets(order, productionUnits);
+            const selectionValues = normalizeDispatchSelections(dispatchSelections[selectionKey(order.id)]);
+            const selectedUnitCodes = getSelectedUnitCodes(selectionValues);
+            const unusedTargets = dispatchTargets.filter((unit) => !unit.disabled);
+            const canAddSelection = !orderHasOpenDispatch && selectionValues.length < unusedTargets.length;
+            const rawSummary = getGroupDispatchSummary(order, 'HAMMADDE');
+            const machineSummary = visibleGroups.includes('MAKINE')
+              ? getGroupDispatchSummary(order, 'MAKINE')
               : null;
 
             return (
@@ -308,18 +375,18 @@ export function ProductionOrderCardList({
                   <TableCell>{formatDate(order.deadlineDate)}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <div>{rawDispatch ? getProductionUnitLabel(rawDispatch.unitCode, rawDispatch.unitName) : '-'}</div>
-                      <span className="status-chip" data-status={rawDispatch?.status ?? 'finished'}>
-                        {rawDispatch ? rawDispatch.status === 'in_progress' ? 'Çalışıyor' : rawDispatch.status === 'completed' ? 'Tamamlandı' : 'Bekliyor' : '-'}
+                      <div>{rawSummary.unitLabel}</div>
+                      <span className="status-chip" data-status={rawSummary.statusTone}>
+                        {rawSummary.statusLabel}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {machineDispatch ? (
+                    {machineSummary ? (
                       <div className="space-y-1">
-                        <div>{getProductionUnitLabel(machineDispatch.unitCode, machineDispatch.unitName)}</div>
-                        <span className="status-chip" data-status={machineDispatch.status}>
-                          {machineDispatch.status === 'in_progress' ? 'Çalışıyor' : machineDispatch.status === 'completed' ? 'Tamamlandı' : 'Bekliyor'}
+                        <div>{machineSummary.unitLabel}</div>
+                        <span className="status-chip" data-status={machineSummary.statusTone}>
+                          {machineSummary.statusLabel}
                         </span>
                       </div>
                     ) : (
@@ -362,71 +429,152 @@ export function ProductionOrderCardList({
                         {scope === 'active' ? (
                           <DetailSection title="Yönetim İşlemleri">
                             <div className="space-y-3">
-                            <div className="space-y-2">
-                              {visibleGroups.map((group) => {
-                                const groupTargets = availableDispatchTargets(order, productionUnits, group);
-                                const groupHasOpenDispatch = hasOpenDispatchForGroup(order, group);
-                                const key = selectionKey(order.id, group);
-                                const currentDispatch = getDisplayDispatchForGroup(order, group);
+                              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                                <div className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">
+                                  Gönderilecek Birimler
+                                </div>
+                                <div className="mt-1 text-sm text-slate-600">
+                                  {orderHasOpenDispatch
+                                    ? 'Açık görevler tamamlanmadan yeni sevk açılamaz.'
+                                    : 'Sıradaki sevk için bir veya daha fazla birim seçin. Daha önce kullanılan birimler pasif görünür.'}
+                                </div>
+                              </div>
 
-                                return (
-                                  <div
-                                    key={group}
-                                    className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 lg:grid-cols-[150px_minmax(0,1fr)_220px_auto] lg:items-center"
+                              <div className="space-y-2">
+                                {selectionValues.map((selectedCode, rowIndex) => {
+                                  const selectedInOtherRows = new Set(
+                                    selectionValues.filter((value, index) => index !== rowIndex && value)
+                                  );
+
+                                  return (
+                                    <div
+                                      key={`${order.id}:${rowIndex}`}
+                                      className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]"
+                                    >
+                                      <Select
+                                        value={selectedCode || undefined}
+                                        onValueChange={(value) =>
+                                          setDispatchSelections((current) => {
+                                            const next = [...normalizeDispatchSelections(current[selectionKey(order.id)])];
+                                            next[rowIndex] = value;
+
+                                            return {
+                                              ...current,
+                                              [selectionKey(order.id)]: next
+                                            };
+                                          })
+                                        }
+                                        disabled={orderHasOpenDispatch || unusedTargets.length === 0}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Birim seçin" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {dispatchTargets.map((unit) => {
+                                            const disabledBecauseSelectedElsewhere = selectedInOtherRows.has(unit.code);
+
+                                            return (
+                                              <SelectItem
+                                                key={unit.code}
+                                                value={unit.code}
+                                                disabled={unit.disabled || disabledBecauseSelectedElsewhere}
+                                              >
+                                                {unit.name} ({PRODUCTION_UNIT_GROUP_LABELS[unit.unitGroup]}){' '}
+                                                {unit.disabledBecauseUsed
+                                                  ? '(kullanıldı)'
+                                                  : disabledBecauseSelectedElsewhere
+                                                    ? '(seçildi)'
+                                                    : ''}
+                                              </SelectItem>
+                                            );
+                                          })}
+                                        </SelectContent>
+                                      </Select>
+
+                                      {selectionValues.length > 1 ? (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            setDispatchSelections((current) => {
+                                              const next = normalizeDispatchSelections(current[selectionKey(order.id)]).filter(
+                                                (_, index) => index !== rowIndex
+                                              );
+
+                                              return {
+                                                ...current,
+                                                [selectionKey(order.id)]: next.length > 0 ? next : ['']
+                                              };
+                                            })
+                                          }
+                                          disabled={orderHasOpenDispatch}
+                                        >
+                                          Sil
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {unusedTargets.length === 0 ? (
+                                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                                  Bu emir kullanılabilir tüm birimlere daha önce gönderildi.
+                                </div>
+                              ) : null}
+
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setDispatchSelections((current) => ({
+                                      ...current,
+                                      [selectionKey(order.id)]: [
+                                        ...normalizeDispatchSelections(current[selectionKey(order.id)]),
+                                        ''
+                                      ]
+                                    }))
+                                  }
+                                  disabled={!canAddSelection}
+                                >
+                                  Birim Ekle
+                                </Button>
+
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => setDispatchTarget({ order, unitCodes: selectedUnitCodes })}
+                                    disabled={orderHasOpenDispatch || selectedUnitCodes.length === 0}
                                   >
-                                    <div>
-                                      <div className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">
-                                        {PRODUCTION_UNIT_GROUP_LABELS[group]}
-                                      </div>
-                                      <div className="mt-1 text-sm text-slate-900">
-                                        {currentDispatch
-                                          ? getProductionUnitLabel(currentDispatch.unitCode, currentDispatch.unitName)
-                                          : 'Henüz işlem yok'}
-                                      </div>
-                                    </div>
-                                    <div className="text-sm text-slate-600">
-                                      {groupHasOpenDispatch
-                                        ? 'Bu grupta açık görev var, yeni sevk açılamaz.'
-                                        : 'Bu grup boşta. İsterseniz sonraki birime gönderin.'}
-                                    </div>
-                                    <Select
-                                      value={dispatchSelections[key] ?? ''}
-                                      onValueChange={(value) =>
-                                        setDispatchSelections((current) => ({
-                                          ...current,
-                                          [key]: value
-                                        }))
-                                      }
-                                      disabled={groupHasOpenDispatch}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Birim seçin" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {groupTargets.map((unit) => (
-                                          <SelectItem key={unit.code} value={unit.code} disabled={unit.disabled}>
-                                            {unit.name} {unit.disabled ? '(kullanıldı)' : ''}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      onClick={() => setDispatchTarget({ order, group })}
-                                      disabled={groupHasOpenDispatch || !dispatchSelections[key]}
-                                    >
-                                      Gönder
-                                    </Button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <div className="flex justify-end">
-                              <Button type="button" variant="outline" size="sm" onClick={() => setFinishTarget(order)} disabled={orderHasOpenDispatch}>
-                                Emri Bitir
-                              </Button>
-                            </div>
+                                    Gönder
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setFinishTarget(order)}
+                                    disabled={orderHasOpenDispatch}
+                                  >
+                                    Emri Bitir
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => {
+                                      setDeleteTarget(order);
+                                      setDeleteOrderNoInput('');
+                                      setDeleteConfirmationText('');
+                                    }}
+                                  >
+                                    Emri Sil
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           </DetailSection>
                         ) : null}
@@ -446,7 +594,14 @@ export function ProductionOrderCardList({
             <DialogTitle>Emri Gönder</DialogTitle>
             <DialogDescription>
               {dispatchTarget
-                ? `#${dispatchTarget.order.orderNo} numaralı emir ${PRODUCTION_UNIT_GROUP_LABELS[dispatchTarget.group]} grubu için seçilen birime gönderilecek.`
+                ? `#${dispatchTarget.order.orderNo} numaralı emir şu birimlere gönderilecek: ${dispatchTarget.unitCodes
+                    .map((unitCode) => {
+                      const unit = productionUnits.find((item) => item.code === unitCode);
+                      return unit
+                        ? `${getProductionUnitLabel(unit.code, unit.name)} (${PRODUCTION_UNIT_GROUP_LABELS[unit.unitGroup]})`
+                        : getProductionUnitLabel(unitCode);
+                    })
+                    .join(', ')}.`
                 : 'Seçilen emir gönderilecek.'}
             </DialogDescription>
           </DialogHeader>
@@ -477,6 +632,79 @@ export function ProductionOrderCardList({
             </Button>
             <Button type="button" onClick={() => void handleFinish()} disabled={busyOrderId === finishTarget?.id}>
               Onayla
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteOrderNoInput('');
+            setDeleteConfirmationText('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Emri Kalıcı Sil</DialogTitle>
+            <DialogDescription>
+              {deleteTarget
+                ? `#${deleteTarget.orderNo} numaralı emir veritabanından kalıcı olarak silinecek ve gönderildiği tüm birim ekranlarından düşecek. Onay için iş emri numarasını ve SIL metnini girin.`
+                : 'Seçilen emir kalıcı olarak silinecek.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">
+                İş Emri Numarası
+              </label>
+              <Input
+                inputMode="numeric"
+                placeholder={deleteTarget ? String(deleteTarget.orderNo) : 'İş emri no'}
+                value={deleteOrderNoInput}
+                onChange={(event) => setDeleteOrderNoInput(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold uppercase tracking-[0.05em] text-slate-500">
+                Onay Metni
+              </label>
+              <Input
+                placeholder="SIL"
+                value={deleteConfirmationText}
+                onChange={(event) => setDeleteConfirmationText(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteOrderNoInput('');
+                setDeleteConfirmationText('');
+              }}
+            >
+              Vazgeç
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleDelete()}
+              disabled={
+                busyOrderId === deleteTarget?.id ||
+                !deleteTarget ||
+                deleteOrderNoInput.trim() !== String(deleteTarget.orderNo) ||
+                deleteConfirmationText.trim().toUpperCase() !== 'SIL'
+              }
+            >
+              Kalıcı Olarak Sil
             </Button>
           </DialogFooter>
         </DialogContent>

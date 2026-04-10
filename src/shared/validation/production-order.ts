@@ -59,8 +59,44 @@ export const productionOrderListQuerySchema = z.object({
   pageSize: z.coerce.number().int().positive().max(50).default(10)
 });
 
-export const productionOrderDispatchCreateSchema = z.object({
-  unitCode: z.enum(ALL_PRODUCTION_UNIT_VALUES)
+const productionDispatchUnitCodeSchema = z.enum(ALL_PRODUCTION_UNIT_VALUES);
+
+export const productionOrderDispatchCreateSchema = z
+  .object({
+    unitCode: productionDispatchUnitCodeSchema.optional(),
+    unitCodes: z.array(productionDispatchUnitCodeSchema).min(1, 'En az bir birim seçilmelidir.').optional()
+  })
+  .superRefine((value, context) => {
+    const unitCodes = value.unitCodes ?? (value.unitCode ? [value.unitCode] : []);
+
+    if (unitCodes.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'En az bir birim seçilmelidir.',
+        path: ['unitCodes']
+      });
+      return;
+    }
+
+    if (new Set(unitCodes).size !== unitCodes.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Aynı birim birden fazla kez seçilemez.',
+        path: ['unitCodes']
+      });
+    }
+  })
+  .transform((value) => ({
+    unitCodes: value.unitCodes ?? (value.unitCode ? [value.unitCode] : [])
+  }));
+
+export const productionOrderDeleteSchema = z.object({
+  orderNo: positiveInteger('İş emri numarası'),
+  confirmationText: z
+    .string()
+    .trim()
+    .transform((value) => value.toUpperCase())
+    .refine((value) => value === 'SIL', 'Onay için SIL yazılmalıdır.')
 });
 
 export const productionOrderCompleteSchema = z.object({

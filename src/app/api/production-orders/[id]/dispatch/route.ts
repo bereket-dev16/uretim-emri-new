@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
 
     const item = await dispatchProductionOrder({
       id: params.id,
-      unitCode: parsed.data.unitCode,
+      unitCodes: parsed.data.unitCodes,
       actorUserId: session.userId
     });
 
