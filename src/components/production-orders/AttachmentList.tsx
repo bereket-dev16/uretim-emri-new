@@ -16,14 +16,10 @@ import { Button } from '@/components/ui/button';
 import { AttachmentListFallback } from './order-view';
 
 function isPreviewableAttachment(mimeType: string): boolean {
-  return mimeType === 'application/pdf' || mimeType.startsWith('image/');
+  return mimeType.startsWith('image/');
 }
 
 function getAttachmentPreviewLabel(mimeType: string): string {
-  if (mimeType === 'application/pdf') {
-    return 'PDF önizleme';
-  }
-
   if (mimeType.startsWith('image/')) {
     return 'Görsel önizleme';
   }
@@ -132,9 +128,7 @@ function AttachmentPreviewDialog({
                 className="max-h-[65vh] max-w-full rounded-md object-contain"
               />
             </div>
-          ) : (
-            <iframe title={attachment?.originalFilename ?? 'PDF'} src={blobUrl} className="h-[65vh] w-full bg-white" />
-          )}
+          ) : null}
         </div>
 
         <DialogFooter>

@@ -4,7 +4,7 @@
 - id (uuid, pk)
 - username (unique)
 - password_hash
-- role (admin | production_manager | warehouse_manager | tablet1)
+- role (admin | production_manager | raw_preparation | machine_operator)
 - is_active
 - last_login_at
 - created_at
@@ -21,33 +21,6 @@
 - user_agent
 - created_at
 
-## stocks
-- id (uuid, pk)
-- irsaliye_no
-- product_name
-- quantity_numeric
-- quantity_unit (gr | adet)
-- product_type (kutu | blister_folyo | sase_folyo | prospektus | sise | etiket | kapak | sleeve)
-- product_category (sarf | hammadde)
-- stock_entry_date (date)
-- pvc_unlimited
-- barcode_serial (unique)
-- barcode_no (format: B + 10 hane)
-- combined_code (irsaliye_no + '-' + barcode_no)
-- created_by (fk -> users)
-- created_by_role (role_type)
-- created_at
-
-## audit_logs
-- id (uuid, pk)
-- actor_user_id (nullable fk -> users)
-- action_type
-- entity_type
-- entity_id
-- payload_json
-- request_id
-- created_at
-
 ## production_orders
 - id (uuid, pk)
 - order_date (date)
@@ -59,29 +32,33 @@
 - deadline_date (date)
 - final_product_name (varchar)
 - packaging_type (kapsul | tablet | sivi | sase | softjel)
-- total_amount_text (varchar)
-- dispatch_unit_code (DEPO | TABLET1 | TABLET2 | BOYA | KAPSUL | BLISTER1 | BLISTER2 | PAKET)
+- total_packaging_quantity (bigint)
+- color (varchar)
+- mold_text (varchar)
+- has_prospectus (boolean)
+- note_text (text, nullable)
+- planned_raw_unit_code (TOZ_KARISIM | SIVI_KARISIM | SOFTJEL)
+- planned_machine_unit_code (DEPO | TABLET1 | TABLET2 | BOYA | KAPSUL | BLISTER1 | BLISTER2 | PAKET, nullable)
 - created_by (fk -> users)
-- created_by_role (role_type)
+- status (active | completed)
 - created_at
 - updated_at
 
-## production_order_materials
+## production_order_attachments
 - id (uuid, pk)
-- production_order_id (fk -> production_orders)
-- material_product_type (varchar)
-- material_name (varchar)
-- material_quantity_text (varchar)
-- is_available (boolean)
-- checked_by (nullable fk -> users)
-- checked_at (nullable timestamptz)
+- production_order_id (fk -> production_orders, cascade)
+- storage_path (unique)
+- original_filename
+- mime_type (image/png | image/jpeg | image/jpg | image/webp | image/gif | image/bmp)
+- size_bytes
+- uploaded_by (fk -> users)
 - created_at
-- updated_at
 
 ## production_order_dispatches
 - id (uuid, pk)
 - production_order_id (fk -> production_orders)
-- unit_code (DEPO | TABLET1 | TABLET2 | BOYA | KAPSUL | BLISTER1 | BLISTER2 | PAKET)
+- unit_code (TOZ_KARISIM | SIVI_KARISIM | SOFTJEL | DEPO | TABLET1 | TABLET2 | BOYA | KAPSUL | BLISTER1 | BLISTER2 | PAKET)
+- unit_group (HAMMADDE | MAKINE)
 - status (pending | in_progress | completed)
 - dispatched_by (fk -> users)
 - dispatched_at (timestamptz)
@@ -89,6 +66,10 @@
 - accepted_at (nullable timestamptz)
 - completed_by (nullable fk -> users)
 - completed_at (nullable timestamptz)
+- reported_output_quantity (bigint, nullable)
+- box_count (bigint, nullable; PAKET ve DEPO tamamlamada zorunlu)
+- carton_count (bigint, nullable; PAKET ve DEPO tamamlamada zorunlu)
+- pallet_count (bigint, nullable; DEPO tamamlamada zorunlu)
 - created_at
 - updated_at
 - unique (production_order_id, unit_code)

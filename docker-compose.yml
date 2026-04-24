@@ -5,16 +5,6 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
-    environment:
-      CONVERTER_BASE_URL: http://converter:4000
     ports:
       - '3000:3000'
-    depends_on:
-      - converter
-    restart: unless-stopped
-
-  converter:
-    build:
-      context: .
-      dockerfile: converter/Dockerfile
     restart: unless-stopped

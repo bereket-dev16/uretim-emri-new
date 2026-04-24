@@ -68,7 +68,12 @@ async function run() {
     path.join('db', 'migrations', '009_hat_role_and_production_units.sql'),
     path.join('db', 'migrations', '010_seed_hat_role_permissions.sql'),
     path.join('db', 'migrations', '011_add_production_order_delete_permission.sql'),
-    path.join('db', 'migrations', '012_production_orders_reset.sql')
+    path.join('db', 'migrations', '012_production_orders_reset.sql'),
+    path.join('db', 'migrations', '013_make_machine_unit_optional.sql'),
+    path.join('db', 'migrations', '014_parallel_dispatch_roles_and_notes.sql'),
+    path.join('db', 'migrations', '015_allow_multi_batch_dispatches.sql'),
+    path.join('db', 'migrations', '016_remove_pdf_converter_tool.sql'),
+    path.join('db', 'migrations', '017_add_dispatch_completion_counts.sql')
   ];
 
   await client.connect();

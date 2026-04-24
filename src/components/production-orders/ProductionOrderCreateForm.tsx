@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { ChangeEvent, ClipboardEvent, DragEvent, FormEvent, useMemo, useRef, useState } from 'react';
+import { ClipboardEvent, DragEvent, FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -54,16 +53,22 @@ interface FormState {
 }
 
 const NO_MACHINE_UNIT = '__none__';
-const ATTACHMENT_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/jpg,image/webp';
-const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+const IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/gif',
+  'image/bmp'
+]);
 
 function isAllowedAttachmentFile(file: File): boolean {
-  if (file.type === 'application/pdf' || IMAGE_MIME_TYPES.has(file.type)) {
+  if (IMAGE_MIME_TYPES.has(file.type)) {
     return true;
   }
 
   const lowerName = file.name.toLowerCase();
-  return ['.pdf', '.png', '.jpg', '.jpeg', '.webp'].some((extension) => lowerName.endsWith(extension));
+  return ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'].some((extension) => lowerName.endsWith(extension));
 }
 
 function dedupeFiles(nextFiles: File[]): File[] {
@@ -125,7 +130,6 @@ export function ProductionOrderCreateForm({
   machineUnits
 }: ProductionOrderCreateFormProps) {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<FormState>(() => createInitialForm(rawUnits));
   const [files, setFiles] = useState<File[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -184,7 +188,7 @@ export function ProductionOrderCreateForm({
     const allowedFiles = selectedFiles.filter(isAllowedAttachmentFile);
 
     if (allowedFiles.length !== selectedFiles.length) {
-      setErrorMessage('Ek dosya alanında yalnız PDF ve görsel yükleyebilirsiniz.');
+      setErrorMessage('Ek alanına yalnız görsel yükleyebilirsiniz.');
     } else {
       setErrorMessage(null);
     }
@@ -194,11 +198,6 @@ export function ProductionOrderCreateForm({
 
   function removeAttachmentFile(index: number) {
     setFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
-  }
-
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    appendAttachmentFiles(Array.from(event.target.files ?? []));
-    event.target.value = '';
   }
 
   function handleFileDrop(event: DragEvent<HTMLDivElement>) {
@@ -472,23 +471,10 @@ export function ProductionOrderCreateForm({
 
           <div className="rounded-md border border-slate-300 bg-white p-3">
             <div className="mb-2">
-              <div className="text-sm font-semibold text-slate-950">Dosya Ekle</div>
+              <div className="text-sm font-semibold text-slate-950">Görsel Ekle</div>
               <div className="mt-1 text-xs leading-5 text-slate-600">
-                PDF veya görsel yükleyebilirsiniz. Word ve Excel dosyalarını önce{' '}
-                <Link href="/tools/pdf-convert" className="font-medium text-blue-700 underline underline-offset-2">
-                  PDF'e Çevir
-                </Link>{' '}
-                aracıyla dönüştürün.
+                Ekran görüntüsünü veya görsel dosyayı bu alana bırakın. Kopyalanmış görselleri alana odaklanıp yapıştırabilirsiniz.
               </div>
-            </div>
-            <Input ref={fileInputRef} type="file" multiple accept={ATTACHMENT_ACCEPT} onChange={handleFileChange} className="hidden" />
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-slate-50 px-3 py-2">
-              <div className="text-xs leading-5 text-slate-600">
-                Bilgisayardan belge seçmek için butonu kullanın. Ekran görüntüsü ekleyecekseniz aşağıdaki alana bırakın veya yapıştırın.
-              </div>
-              <Button type="button" size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                Dosya Seç
-              </Button>
             </div>
             <div
               role="region"
@@ -508,15 +494,15 @@ export function ProductionOrderCreateForm({
                 }
               }}
               className={[
-                'flex min-h-[96px] cursor-default flex-col items-center justify-center rounded-md border border-dashed px-3 py-4 text-center outline-none transition-colors',
+                'flex min-h-[112px] cursor-default flex-col items-center justify-center rounded-md border border-dashed px-3 py-4 text-center outline-none transition-colors',
                 isDraggingFiles
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-slate-300 bg-slate-50 hover:border-slate-400'
               ].join(' ')}
             >
-              <div className="text-sm font-semibold text-slate-900">Dosyaları bu alana bırakın veya görsel yapıştırın</div>
+              <div className="text-sm font-semibold text-slate-900">Görseli bu alana bırakın veya yapıştırın</div>
               <div className="mt-1 max-w-sm text-[11px] leading-5 text-slate-500">
-                Desteklenen türler: PDF, PNG, JPG, WEBP. Bu alanı seçip `Ctrl + V` / `Command + V` ile kopyalanmış görseli doğrudan ekleyebilirsiniz.
+                Desteklenen türler: PNG, JPG, JPEG, WEBP, GIF, BMP. Bu alanı seçip `Ctrl + V` / `Command + V` ile kopyalanmış görseli doğrudan ekleyebilirsiniz.
               </div>
             </div>
             {files.length > 0 ? (

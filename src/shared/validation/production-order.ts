@@ -19,6 +19,12 @@ const positiveInteger = (label: string) =>
     .int(`${label} tam sayı olmalıdır.`)
     .positive(`${label} 0'dan büyük olmalıdır.`);
 
+const optionalPositiveInteger = (label: string) =>
+  z.preprocess(
+    (value) => (value === '' || value == null ? undefined : value),
+    positiveInteger(label).optional()
+  );
+
 export const productionOrderCreateSchema = z.object({
   orderDate: isoDateSchema,
   orderNo: positiveInteger('İş emri numarası'),
@@ -100,5 +106,8 @@ export const productionOrderDeleteSchema = z.object({
 });
 
 export const productionOrderCompleteSchema = z.object({
-  reportedOutputQuantity: positiveInteger('Son sipariş miktarı')
+  reportedOutputQuantity: positiveInteger('Son sipariş miktarı'),
+  boxCount: optionalPositiveInteger('Kutu sayısı'),
+  cartonCount: optionalPositiveInteger('Koli sayısı'),
+  palletCount: optionalPositiveInteger('Palet sayısı')
 });

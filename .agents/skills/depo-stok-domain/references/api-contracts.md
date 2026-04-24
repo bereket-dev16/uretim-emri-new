@@ -19,13 +19,6 @@
 ## Dashboard
 - GET /api/dashboard/summary
 
-## Audit
-- GET /api/audit/stream?limit=
-
-## Stocks
-- GET /api/stocks?query=&role=&productType=&productCategory=&stockEntryDate=&page=&pageSize=10&sort=
-- POST /api/stocks
-
 ## Admin Users
 - GET /api/admin/users
 - POST /api/admin/users
@@ -37,19 +30,27 @@
 - UI Routes:
   - `/production-orders/create`
   - `/production-orders`
-  - `/production-orders/warehouse`
-  - `/production-orders/monitor`
+  - `/production-orders/completed`
+  - `/production-orders/incoming`
   - `/production-orders/tasks`
 - API:
-  - `GET /api/production-orders?scope=all|warehouse|monitor|unit`
+  - `GET /api/production-orders?scope=active|completed|incoming|unit`
   - `POST /api/production-orders`
+  - `GET /api/production-orders/:id`
   - `DELETE /api/production-orders/:id`
-  - `PATCH /api/production-orders/:id/materials/:materialId`
   - `POST /api/production-orders/:id/dispatch`
+  - `POST /api/production-orders/:id/finish`
   - `POST /api/production-orders/dispatches/:dispatchId/accept`
   - `POST /api/production-orders/dispatches/:dispatchId/complete`
+    - Body: `{ reportedOutputQuantity, boxCount?, cartonCount?, palletCount? }`
+  - `POST /api/production-orders/:id/attachments`
+  - `GET /api/production-orders/:id/attachments/:attachmentId`
 - Davranış:
-  - Create form: popup preview + PDF yazdırma + DB persist.
-  - Depo paneli: malzeme var/yok tikleme + çoklu birime sevk.
-  - Birim paneli: `Görevi Kabul Et` -> `Çalışıyor` -> `Bitti`.
-  - Süreç takip paneli: salt okunur kart/detay görünümü.
+  - Create form: popup preview + DB persist.
+  - Ekler: yalnız görsel dosyaları kabul edilir; üretim emri oluşturma ekranında dosya seçme butonu yoktur, görseller sürükle-bırak veya kopyala-yapıştır ile eklenir.
+  - Aktif emir paneli: açık görev yoksa müdür bir veya daha fazla birime yeni batch sevk açabilir.
+  - Birim panelleri: `Görevi Kabul Et` -> `Çalışıyor` -> `Bitti`.
+  - Tüm birimler bitirirken `reportedOutputQuantity` girer.
+  - `PAKET` bitirirken ayrıca `boxCount` ve `cartonCount` zorunludur.
+  - `DEPO` bitirirken ayrıca `boxCount`, `cartonCount` ve `palletCount` zorunludur.
+  - Aynı emir aynı birime ikinci kez gönderilemez.

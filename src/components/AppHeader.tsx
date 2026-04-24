@@ -25,7 +25,6 @@ function buildNavItems(role: SessionDTO['role']) {
   return [
     { href: '/dashboard', label: 'Anasayfa' },
     { href: '/production-orders/create', label: 'Üretim Emri Oluştur' },
-    { href: '/tools/pdf-convert', label: "PDF'e Çevir" },
     { href: '/production-orders', label: 'Devam Eden Emirler' },
     { href: '/production-orders/completed', label: 'Biten Emirler' }
   ];

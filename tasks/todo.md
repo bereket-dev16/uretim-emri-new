@@ -829,3 +829,38 @@
 - Silinen emir aktif liste ve dolayısıyla ilgili birim ekranlarından da düşüyor; kullanıcıya bunun kalıcı olduğu açık mesajla gösteriliyor.
 - `productionOrderDeleteSchema` ve ilgili unit testler eklendi.
 - Dogrulama: `corepack pnpm test`, `corepack pnpm build`, `corepack pnpm typecheck` basarili.
+
+## Iteration: Remove PDF Converter And Image-Only Attachments
+### Plan
+- [x] PDF converter route, sayfa, component, shared client, test ve Docker servis baglantilarini tespit et
+- [x] RBAC, migration ve dokumantasyonu `tools:pdf-convert` olmadan hizala
+- [x] Uretim emri create ek alanindan dosya secme/PDF kabulunu kaldir
+- [x] Attachment backend whitelist'ini yalniz gorsel MIME/uzantilara indir
+- [x] Typecheck, test ve build ile davranisi dogrula
+
+### Review
+- PDF converter route/page/component/shared client/test dosyalari ve `converter` Docker servisi kaldirildi.
+- Header'daki `PDF'e Cevir` navigasyonu, `package.json` scripti, compose service/env baglantilari ve `.env.example` converter degiskenleri temizlendi.
+- RBAC defaultlarindan `tools:pdf-convert` cikarildi; `016_remove_pdf_converter_tool.sql` varsa DB'deki permission kaydini temizleyecek sekilde eklendi.
+- Uretim emri create ek alani dosya secme butonu olmadan sadece gorsel surukle-birak ve kopyala-yapistir kabul edecek sekilde sadeleştirildi.
+- Backend attachment whitelist'i `png/jpg/jpeg/webp/gif/bmp` gorsellerle sinirlandi; hata mesaji da yalniz gorsel kabul edildigini soyluyor.
+- Dokumantasyon ve domain referanslari yeni gorsel-only attachment politikasina hizalandi; migration runner 013-016 dosyalarini da calistiracak sekilde guncellendi.
+- Dogrulama: `corepack pnpm test`, `corepack pnpm build`, `corepack pnpm typecheck`, `corepack pnpm quality:backend`, `node --check scripts/run-migrations.mjs` basarili. `quality:backend` mevcut 2 SQL template interpolation warning'ini aynen raporluyor.
+
+## Iteration: Unit Completion Count Fields
+### Plan
+- [x] Mevcut görev bitirme akışını ve `reported_output_quantity` kullanımını incele
+- [x] Dispatch şemasına kutu/koli/palet sayısı alanlarını ekle
+- [x] Complete API doğrulamasını ve servis zorunluluklarını birime göre güncelle
+- [x] Birim görev bitirme modalında PAKET ve DEPO için ek alanları göster
+- [x] Müdür aktif/biten emir detaylarında yeni sayıları görünür yap
+- [x] Typecheck, test ve build ile doğrula
+
+### Review
+- `017_add_dispatch_completion_counts.sql` ile `production_order_dispatches` tablosuna `box_count`, `carton_count`, `pallet_count` alanlari ve pozitif deger check constraintleri eklendi.
+- Complete API body kontrati `reportedOutputQuantity` yaninda opsiyonel `boxCount`, `cartonCount`, `palletCount` alacak sekilde genisletildi.
+- Servis katmaninda tum birimler icin `Son Sipariş Miktarı`, `PAKET` icin ek `Kutu/Koli`, `DEPO` icin ek `Kutu/Koli/Palet` zorunlu hale getirildi.
+- Birim devam eden gorev modalinda alanlar aktif dispatch'in `unitCode` degerine gore dinamik gosteriliyor.
+- Mudur panelindeki sevk gecmisi tablosuna `Kutu`, `Koli`, `Palet` kolonlari eklendi.
+- Benchmark complete payload'i `PAKET` ve `DEPO` gorevlerinde yeni zorunlu sayilari gonderecek sekilde guncellendi.
+- Dogrulama: `corepack pnpm test`, `corepack pnpm typecheck`, `corepack pnpm build`, `corepack pnpm quality:backend`, `node --check scripts/benchmark-production-flow.mjs`, `node --check scripts/run-migrations.mjs` basarili. `quality:backend` mevcut 2 SQL template interpolation warning'ini aynen raporluyor.

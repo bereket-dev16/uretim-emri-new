@@ -1,6 +1,6 @@
 # Proje Özeti
 - Uygulama artık yalnız üretim emri yönetimine odaklıdır.
-- Akış: giriş -> dashboard -> üretim emri oluşturma -> aktif emir yönetimi -> hat kabul/tamamlama -> biten emir arşivi.
+- Akış: giriş -> dashboard -> üretim emri oluşturma -> aktif emir yönetimi -> hammadde/makine birimi kabul-tamamlama -> biten emir arşivi.
 - Stok, audit canlı akışı ve depo özel modülleri kaldırılmıştır.
 
 # Teknoloji Yığını
@@ -31,7 +31,7 @@
 - `src/modules/users`: kullanıcı yönetimi
 - `src/modules/dashboard`: emir özet metrikleri
 - `src/modules/production-orders`: üretim emri akışı
-- `src/shared/storage`: Supabase Storage yardımcıları
+- `src/shared/storage`: Supabase Storage yardımcıları; üretim emri ekleri yalnız görsel dosyalarıdır
 - `db/migrations`: şema migration'ları
 - `tasks`: proje hafızası
 
@@ -45,8 +45,9 @@
 - `Role` yalnız:
   - `admin`
   - `production_manager`
-  - `hat`
-- Hat kullanıcılarında `hatUnitCode` zorunludur.
+  - `raw_preparation`
+  - `machine_operator`
+- `raw_preparation` ve `machine_operator` kullanıcılarında `hatUnitCode` zorunludur.
 - Üretim emri aynı anda tek açık dispatch ile ilerler.
 - `production_order_dispatches` içinde aynı birime ikinci kez gönderim yapılamaz.
 
@@ -79,6 +80,8 @@
 - UI değişiminde `frontend-design`, akış değişiminde `depo-stok-workflow`, domain kararında `depo-stok-domain` kullan.
 - Eski stok/audit/depo varsayımlarını geri getirme.
 - Hat kullanıcıları için yalnız kendi birim ekranlarını açık tut.
+- PDF dönüştürme aracı ve converter servisi kaldırıldı; üretim emri oluştururken ekler dosya seçme butonu olmadan sadece görsel sürükle-bırak veya kopyala-yapıştır ile alınır.
+- Görev bitirme alanları birime göre değişir: tüm birimler `Son Sipariş Miktarı`; `PAKET` ek olarak kutu/koli; `DEPO` ek olarak kutu/koli/palet girer.
 
 ## Perfect Prompt Template
 Context:

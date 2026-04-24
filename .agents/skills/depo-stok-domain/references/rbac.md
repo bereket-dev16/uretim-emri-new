@@ -3,18 +3,16 @@
 ## Roles
 - admin
 - production_manager
-- warehouse_manager
-- hat
+- raw_preparation
+- machine_operator
 
 ## Permissions
 - dashboard:view
-- stocks:view
-- stocks:create
 - production-orders:view
 - production-orders:create
-- production-orders:delete
-- production-orders:warehouse
-- production-orders:monitor
+- production-orders:manage
+- production-orders:attachments:view
+- production-orders:incoming
 - production-orders:unit-task
 - admin:users:view
 - admin:users:create
@@ -24,10 +22,10 @@
 
 ## Role to Permission Mapping
 - admin: all permissions
-- production_manager: dashboard:view, stocks:view, stocks:create, production-orders:view, production-orders:create, production-orders:delete, production-orders:monitor
-- warehouse_manager: dashboard:view, stocks:view, stocks:create, production-orders:view, production-orders:create, production-orders:delete, production-orders:warehouse
-- hat: production-orders:unit-task
+- production_manager: dashboard:view, production-orders:view, production-orders:create, production-orders:manage, production-orders:attachments:view
+- raw_preparation: production-orders:attachments:view, production-orders:incoming, production-orders:unit-task
+- machine_operator: production-orders:incoming, production-orders:unit-task
 
 ## UI visibility rules
 - Header içindeki "Admin Paneli" butonu sadece `admin` rolüne görünür.
-- `hat` rolü stok ekranlarını görmez, varsayılan iniş sayfası `/production-orders/tasks` olur.
+- `raw_preparation` ve `machine_operator` rolleri yönetim ekranlarını görmez, varsayılan iniş sayfası `/production-orders/incoming` olur.

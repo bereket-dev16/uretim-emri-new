@@ -60,6 +60,9 @@ export interface ProductionOrderDispatchDTO {
   acceptedAt: string | null;
   completedAt: string | null;
   reportedOutputQuantity: number | null;
+  boxCount: number | null;
+  cartonCount: number | null;
+  palletCount: number | null;
 }
 
 export interface ProductionOrderListItemDTO {

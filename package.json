@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "converter:dev": "node converter/server.mjs",
     "build": "next build",
     "start": "node scripts/start-standalone.mjs",
     "bench:prepare": "node scripts/prepare-benchmark-users.mjs",

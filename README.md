@@ -8,9 +8,9 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 - Üretim emri oluşturma
 - Aktif emir yönetimi
 - Operatör kullanıcıları için gelen emir / devam eden emir ekranları
+- Birim bazlı bitirme formları: tüm birimler son sipariş miktarı, Paket kutu/koli, Depo kutu/koli/palet girer
 - Admin kullanıcı yönetimi
-- Supabase Storage üzerinden PDF ve görsel ek dosya yükleme
-- Word/Excel için ayrı PDF dönüştürme aracı
+- Supabase Storage üzerinden görsel ek dosya yükleme
 
 ## Kurulum
 1. `.env.example` dosyasını `.env` olarak kopyalayın.
@@ -24,13 +24,11 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 6. `db/bootstrap/01_first_admin_template.sql` içindeki placeholder alanları doldurup çalıştırın.
 7. Uygulamayı başlatın:
    - `pnpm dev`
-8. Word/Excel -> PDF aracı kullanacaksanız ayrı converter servisini de başlatın:
-   - `pnpm converter:dev`
 
 ## Roller
 - `admin`: tüm ekranlar ve admin paneli
-- `production_manager`: dashboard, create, PDF aracı, aktif emirler, biten emirler
-- `raw_preparation`: gelen emirler, devam eden emirler, PDF attachment görüntüleme
+- `production_manager`: dashboard, create, aktif emirler, biten emirler
+- `raw_preparation`: gelen emirler, devam eden emirler, görsel attachment görüntüleme
 - `machine_operator`: gelen emirler, devam eden emirler
 
 ## Ana Route'lar
@@ -40,7 +38,6 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 - `/production-orders/completed`
 - `/production-orders/incoming`
 - `/production-orders/tasks`
-- `/tools/pdf-convert`
 - `/admin/users`
 
 ## API
@@ -57,7 +54,6 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 - `POST /api/production-orders/dispatches/:dispatchId/complete`
 - `POST /api/production-orders/:id/attachments`
 - `GET /api/production-orders/:id/attachments/:attachmentId`
-- `POST /api/tools/pdf-convert`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `PATCH /api/admin/users/:id`
@@ -69,11 +65,10 @@ LAN ortamında çalışan, yalnız üretim emri akışına odaklı Next.js fulls
 - Güncelleme sonrası:
   - `git pull`
   - `docker compose build --progress=plain`
-  - `docker compose up -d`
+  - `docker compose up -d --remove-orphans`
 - Kontrol:
   - `docker compose ps`
   - `docker compose logs web --tail 50`
-  - `docker compose logs converter --tail 50`
 
 ## Gercekci Benchmark
 Amac, paralel spam yerine rol-bazli ve kuyruklu oturumlarla cekirdek uretim emri akisina yuk bindirmektir.

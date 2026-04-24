@@ -11,7 +11,6 @@ describe('rbac defaults', () => {
     expect(adminPermissions).toContain(PERMISSIONS.PRODUCTION_ORDERS_CREATE);
     expect(adminPermissions).toContain(PERMISSIONS.PRODUCTION_ORDERS_MANAGE);
     expect(adminPermissions).toContain(PERMISSIONS.PRODUCTION_ORDER_ATTACHMENTS_VIEW);
-    expect(adminPermissions).toContain(PERMISSIONS.TOOLS_PDF_CONVERT);
     expect(adminPermissions).toContain(PERMISSIONS.PRODUCTION_ORDERS_INCOMING);
     expect(adminPermissions).toContain(PERMISSIONS.PRODUCTION_ORDERS_UNIT_TASK);
     expect(adminPermissions).toContain(PERMISSIONS.ADMIN_USERS_UPDATE);
@@ -25,8 +24,7 @@ describe('rbac defaults', () => {
         PERMISSIONS.PRODUCTION_ORDERS_VIEW,
         PERMISSIONS.PRODUCTION_ORDERS_CREATE,
         PERMISSIONS.PRODUCTION_ORDERS_MANAGE,
-        PERMISSIONS.PRODUCTION_ORDER_ATTACHMENTS_VIEW,
-        PERMISSIONS.TOOLS_PDF_CONVERT
+        PERMISSIONS.PRODUCTION_ORDER_ATTACHMENTS_VIEW
       ])
     );
   });

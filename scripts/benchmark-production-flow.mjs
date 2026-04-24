@@ -366,6 +366,23 @@ function getDispatchByUnitAndStatus(order, unitCode, status) {
   return order.dispatches.find((dispatch) => dispatch.unitCode === unitCode && dispatch.status === status) ?? null;
 }
 
+function buildCompletionPayload(unitCode, quantity) {
+  const payload = {
+    reportedOutputQuantity: quantity
+  };
+
+  if (unitCode === 'PAKET' || unitCode === 'DEPO') {
+    payload.boxCount = Math.max(1, Math.ceil(quantity / 24));
+    payload.cartonCount = Math.max(1, Math.ceil(payload.boxCount / 12));
+  }
+
+  if (unitCode === 'DEPO') {
+    payload.palletCount = Math.max(1, Math.ceil(payload.cartonCount / 24));
+  }
+
+  return payload;
+}
+
 function nextUnusedMachine(order, machineSequence) {
   const used = new Set(order.dispatches.map((dispatch) => dispatch.unitCode));
   return machineSequence.find((unitCode) => !used.has(unitCode)) ?? null;
@@ -669,9 +686,7 @@ function makeOperatorSession(params) {
           `/api/production-orders/dispatches/${activeDispatch.id}/complete`,
           {
             label: 'dispatch/complete',
-            json: {
-              reportedOutputQuantity: task.quantity
-            }
+            json: buildCompletionPayload(activeDispatch.unitCode, task.quantity)
           }
         );
 

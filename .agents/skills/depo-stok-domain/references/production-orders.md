@@ -4,14 +4,14 @@
 - Sayfalar:
   - `/production-orders/create`
   - `/production-orders`
-  - `/production-orders/warehouse`
-  - `/production-orders/monitor`
+  - `/production-orders/completed`
+  - `/production-orders/incoming`
   - `/production-orders/tasks`
 - Form iki bloktan oluşur:
   - Üst blok: iş emri ana bilgileri
-  - Alt blok: malzeme satırları
+  - Alt blok: sevk birimi ve görsel ek alanı
 - `Oluştur` aksiyonu popup/modal içinde tablo önizleme açar.
-- Popup içinde `Yazdır (PDF)` ve `Kaydet ve Oluştur` aksiyonları bulunur.
+- Popup içinde `Kaydet ve Oluştur` aksiyonu bulunur.
 
 ## Üst Form Alanları
 - `İş Emri Tarihi` (`order_date`)
@@ -26,15 +26,10 @@
 - Seçenekler: `kapsul | tablet | sivi | sase | softjel`
 - `Toplam Ambalaj Miktarı` (`total_amount_text`): metin alanı
 
-## Alt Form Alanları (Satır Bazlı)
-- Her satır şu kolonlardan oluşur:
-- `Malzeme Adı` (`material_name`)
-- `Miktar` (`material_quantity_text`)
-- `Ürün Tipi` (`material_product_type`): dropdown ile tek seçim
-
 ## Sevk Bilgisi
-- `Sevkedilecek Birimler` (`dispatch_units`): ayrı component/card, dropdown içinde çoklu seçim.
-- Bu alan malzeme satırından bağımsızdır ve `Oluştur` butonunun üstünde konumlanır.
+- `Hammadde Hazırlama` (`planned_raw_unit_code`): zorunlu tek seçim.
+- `Makine Birimi` (`planned_machine_unit_code`): opsiyonel tek seçim.
+- Emir oluşurken hammadde için ilk `pending` dispatch açılır; makine seçildiyse aynı anda ilk makine dispatch'i de açılır.
 
 ## Sevkedilecek Birim Listesi
 - Seçenekler `production_units` tablosundaki aktif kayıtlar üzerinden gelir.
@@ -42,38 +37,29 @@
 
 ## Popup Çıktı Davranışı
 - `Oluştur` tıklandığında modal açılır.
-- Modal içinde iki tablo/blok gösterilir:
+- Modal içinde bloklar gösterilir:
 - Ana iş emri alanlarının özet tablosu
-- Alt formdaki malzeme satırlarının tablo görünümü
 - Tek seçimli alanlarda birden fazla değer kabul edilmez.
-- Sevk birimi alanı çoklu seçimdir.
-- Modal içinde `Yazdır (PDF)` butonu bulunur.
-- PDF/print şablonunda üst bölümde şirket logosu gösterilir.
+- Ek dosyalar yalnız görsel olabilir; create formda dosya seçme butonu bulunmaz.
+- Görseller sürükle-bırak veya kopyala-yapıştır ile eklenir.
 - Modal içinde `Kaydet ve Oluştur` ile DB’ye persist edilir.
 
-## Depo Gelen Emirleri
-- `warehouse_manager` (ve admin) bu paneli görür.
-- Bu panel sadece dispatch listesinde `DEPO` birimi bulunan emirleri listeler.
-- Malzemeler için `is_available` depo tarafından checkbox ile işaretlenir.
-- Tüm malzemeler hazır olmadan sevk yapılamaz.
-- Sevk birimi seçimi çoklu checkbox ile yapılır (`DEPO` hariç).
-
 ## Birim Görevleri
-- `hat` rolü sadece bu ekranı görür (`users.hat_unit_code` ile bağlı birim görevleri listelenir).
+- `raw_preparation` ve `machine_operator` rolleri kendi `users.hat_unit_code` birimine bağlı görevleri listeler.
 - Durum akışı:
   - `pending`: Görev bekliyor
   - `in_progress`: Görevi kabul etti/çalışıyor
   - `completed`: Bitti
-- Hat operatörü kabul ve bitiş aksiyonlarını yönetir.
+- Birim kullanıcısı kabul ve bitiş aksiyonlarını yönetir.
+- Tüm birimler bitirirken `Son Sipariş Miktarı` girer.
+- `PAKET` birimi bitirirken ayrıca `Kutu Sayısı` ve `Koli Sayısı` girer.
+- `DEPO` birimi bitirirken ayrıca `Kutu Sayısı`, `Koli Sayısı` ve `Palet Sayısı` girer.
+- Müdür aktif/biten emir detayındaki sevk geçmişinde bu değerleri görür.
 
 ## Canlı Güncelleme
-- Liste (`/production-orders`), süreç takibi (`/production-orders/monitor`), depo (`/production-orders/warehouse`) ve hat görevleri (`/production-orders/tasks`) ekranları polling ile anlık senkronize edilir.
+- Aktif liste (`/production-orders`), gelen emirler (`/production-orders/incoming`) ve devam eden birim görevleri (`/production-orders/tasks`) polling ile senkronize edilir.
 - Görünmez sekmede polling durur, sekme görünür olunca hemen senkronizasyon tetiklenir.
 
 ## Silme
 - Test/operasyon ihtiyacı için üretim emri hard-delete olarak silinebilir.
-- Silme kart üstünden modal onay ile yapılır; `PRODUCTION_ORDER_DELETED` audit kaydı zorunludur.
-
-## Süreç Takibi
-- `production_manager` (ve admin) için ayrı salt okunur paneldir.
-- Kart detaylarında malzeme uygunluğu ve tüm sevk birimi durumları izlenir.
+- Silme kart üstünden iş emri numarası + `SIL` metni ile iki aşamalı modal onayla yapılır.

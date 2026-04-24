@@ -50,6 +50,9 @@ export function ProductionUnitTasksPanel({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [completeTarget, setCompleteTarget] = useState<ProductionOrderListItemDTO | null>(null);
   const [reportedOutputQuantity, setReportedOutputQuantity] = useState('');
+  const [boxCount, setBoxCount] = useState('');
+  const [cartonCount, setCartonCount] = useState('');
+  const [palletCount, setPalletCount] = useState('');
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -114,6 +117,30 @@ export function ProductionUnitTasksPanel({
     [items]
   );
 
+  const completeTargetDispatch =
+    completeTarget?.dispatches.find(
+      (dispatch) => dispatch.status === 'in_progress' && dispatch.unitCode === actorUnitCode
+    ) ?? null;
+  const requiresBoxAndCarton =
+    completeTargetDispatch?.unitCode === 'PAKET' || completeTargetDispatch?.unitCode === 'DEPO';
+  const requiresPallet = completeTargetDispatch?.unitCode === 'DEPO';
+
+  function resetCompleteForm() {
+    setCompleteTarget(null);
+    setReportedOutputQuantity('');
+    setBoxCount('');
+    setCartonCount('');
+    setPalletCount('');
+  }
+
+  function openCompleteDialog(order: ProductionOrderListItemDTO) {
+    setReportedOutputQuantity('');
+    setBoxCount('');
+    setCartonCount('');
+    setPalletCount('');
+    setCompleteTarget(order);
+  }
+
   async function handleComplete() {
     if (!completeTarget) {
       return;
@@ -133,20 +160,39 @@ export function ProductionUnitTasksPanel({
       return;
     }
 
+    if (requiresBoxAndCarton && (!boxCount.trim() || !cartonCount.trim())) {
+      setErrorMessage('Kutu sayısı ve koli sayısı zorunludur.');
+      return;
+    }
+
+    if (requiresPallet && !palletCount.trim()) {
+      setErrorMessage('Palet sayısı zorunludur.');
+      return;
+    }
+
     setBusyOrderId(completeTarget.id);
     setErrorMessage(null);
     setStatusMessage(null);
 
     try {
+      const body = {
+        reportedOutputQuantity: Number(reportedOutputQuantity),
+        ...(requiresBoxAndCarton
+          ? {
+              boxCount: Number(boxCount),
+              cartonCount: Number(cartonCount)
+            }
+          : {}),
+        ...(requiresPallet ? { palletCount: Number(palletCount) } : {})
+      };
+
       const response = await fetch(`/api/production-orders/dispatches/${activeDispatch.id}/complete`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          reportedOutputQuantity: Number(reportedOutputQuantity)
-        })
+        body: JSON.stringify(body)
       });
       const payload = await response.json();
 
@@ -157,8 +203,7 @@ export function ProductionUnitTasksPanel({
 
       setItems((current) => current.filter((item) => item.id !== completeTarget.id));
       setStatusMessage(`Emir #${completeTarget.orderNo} tamamlandı olarak iletildi.`);
-      setCompleteTarget(null);
-      setReportedOutputQuantity('');
+      resetCompleteForm();
     } catch {
       setErrorMessage('Sunucuya erişilemedi.');
     } finally {
@@ -221,7 +266,7 @@ export function ProductionUnitTasksPanel({
                         {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         {isExpanded ? 'Kapat' : 'Detay'}
                       </Button>
-                      <Button type="button" size="sm" onClick={() => setCompleteTarget(order)}>
+                      <Button type="button" size="sm" onClick={() => openCompleteDialog(order)}>
                         Bitir
                       </Button>
                     </div>
@@ -259,7 +304,7 @@ export function ProductionUnitTasksPanel({
         </TableBody>
       </Table>
 
-      <Dialog open={Boolean(completeTarget)} onOpenChange={(open) => (!open ? setCompleteTarget(null) : undefined)}>
+      <Dialog open={Boolean(completeTarget)} onOpenChange={(open) => (!open ? resetCompleteForm() : undefined)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Görevi Bitir</DialogTitle>
@@ -270,20 +315,59 @@ export function ProductionUnitTasksPanel({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-medium text-slate-700" htmlFor="reportedOutputQuantity">
               Son Sipariş Miktarı
+              <Input
+                id="reportedOutputQuantity"
+                className="mt-1"
+                inputMode="numeric"
+                value={reportedOutputQuantity}
+                onChange={(event) => setReportedOutputQuantity(event.target.value.replace(/\D/g, ''))}
+              />
             </label>
-            <Input
-              id="reportedOutputQuantity"
-              inputMode="numeric"
-              value={reportedOutputQuantity}
-              onChange={(event) => setReportedOutputQuantity(event.target.value.replace(/\D/g, ''))}
-            />
+
+            {requiresBoxAndCarton ? (
+              <>
+                <label className="text-sm font-medium text-slate-700" htmlFor="boxCount">
+                  Kutu Sayısı
+                  <Input
+                    id="boxCount"
+                    className="mt-1"
+                    inputMode="numeric"
+                    value={boxCount}
+                    onChange={(event) => setBoxCount(event.target.value.replace(/\D/g, ''))}
+                  />
+                </label>
+                <label className="text-sm font-medium text-slate-700" htmlFor="cartonCount">
+                  Koli Sayısı
+                  <Input
+                    id="cartonCount"
+                    className="mt-1"
+                    inputMode="numeric"
+                    value={cartonCount}
+                    onChange={(event) => setCartonCount(event.target.value.replace(/\D/g, ''))}
+                  />
+                </label>
+              </>
+            ) : null}
+
+            {requiresPallet ? (
+              <label className="text-sm font-medium text-slate-700" htmlFor="palletCount">
+                Palet Sayısı
+                <Input
+                  id="palletCount"
+                  className="mt-1"
+                  inputMode="numeric"
+                  value={palletCount}
+                  onChange={(event) => setPalletCount(event.target.value.replace(/\D/g, ''))}
+                />
+              </label>
+            ) : null}
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCompleteTarget(null)}>
+            <Button type="button" variant="outline" onClick={resetCompleteForm}>
               Vazgeç
             </Button>
             <Button type="button" onClick={() => void handleComplete()} disabled={busyOrderId === completeTarget?.id}>

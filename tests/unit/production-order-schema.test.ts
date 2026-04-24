@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   productionOrderCreateSchema,
+  productionOrderCompleteSchema,
   productionOrderDeleteSchema,
   productionOrderDispatchCreateSchema
 } from '@/shared/validation/production-order';
@@ -95,5 +96,34 @@ describe('production order delete schema', () => {
     });
 
     expect(parsed.success).toBe(false);
+  });
+});
+
+describe('production order complete schema', () => {
+  it('accepts optional package and pallet counts', () => {
+    const parsed = productionOrderCompleteSchema.parse({
+      reportedOutputQuantity: 1000,
+      boxCount: 120,
+      cartonCount: 20,
+      palletCount: 2
+    });
+
+    expect(parsed).toEqual({
+      reportedOutputQuantity: 1000,
+      boxCount: 120,
+      cartonCount: 20,
+      palletCount: 2
+    });
+  });
+
+  it('keeps extra completion counts optional for non-package units', () => {
+    const parsed = productionOrderCompleteSchema.parse({
+      reportedOutputQuantity: 1000
+    });
+
+    expect(parsed.reportedOutputQuantity).toBe(1000);
+    expect(parsed.boxCount).toBeUndefined();
+    expect(parsed.cartonCount).toBeUndefined();
+    expect(parsed.palletCount).toBeUndefined();
   });
 });

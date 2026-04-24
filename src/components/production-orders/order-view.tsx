@@ -33,6 +33,10 @@ export function formatDateTime(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('tr-TR');
 }
 
+function formatCount(value: number | null): string {
+  return value == null ? '-' : String(value);
+}
+
 export function getStatusTone(status: string): 'pending' | 'in_progress' | 'completed' | 'finished' {
   switch (status) {
     case 'pending':
@@ -589,6 +593,9 @@ export function DispatchHistoryTable({ order }: { order: ProductionOrderListItem
           <TableHead>Kabul</TableHead>
           <TableHead>Bitiş</TableHead>
           <TableHead>Son Sipariş</TableHead>
+          <TableHead>Kutu</TableHead>
+          <TableHead>Koli</TableHead>
+          <TableHead>Palet</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -604,7 +611,10 @@ export function DispatchHistoryTable({ order }: { order: ProductionOrderListItem
             <TableCell>{formatDateTime(dispatch.dispatchedAt)}</TableCell>
             <TableCell>{formatDateTime(dispatch.acceptedAt)}</TableCell>
             <TableCell>{formatDateTime(dispatch.completedAt)}</TableCell>
-            <TableCell>{dispatch.reportedOutputQuantity ?? '-'}</TableCell>
+            <TableCell>{formatCount(dispatch.reportedOutputQuantity)}</TableCell>
+            <TableCell>{formatCount(dispatch.boxCount)}</TableCell>
+            <TableCell>{formatCount(dispatch.cartonCount)}</TableCell>
+            <TableCell>{formatCount(dispatch.palletCount)}</TableCell>
           </TableRow>
         ))}
       </TableBody>

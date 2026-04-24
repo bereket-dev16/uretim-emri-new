@@ -77,6 +77,9 @@ interface AcceptDispatchParams {
 
 interface CompleteDispatchParams extends AcceptDispatchParams {
   reportedOutputQuantity: number;
+  boxCount?: number;
+  cartonCount?: number;
+  palletCount?: number;
 }
 
 interface AttachmentParams {
@@ -127,6 +130,9 @@ interface ProductionOrderDispatchRow extends QueryResultRow {
   accepted_at: Date | string | null;
   completed_at: Date | string | null;
   reported_output_quantity: number | null;
+  box_count: number | null;
+  carton_count: number | null;
+  pallet_count: number | null;
 }
 
 interface ProductionOrderAttachmentRow extends QueryResultRow {
@@ -152,19 +158,21 @@ interface OrderAttachmentStorageRow extends QueryResultRow {
 }
 
 const ALLOWED_ATTACHMENT_MIME_TYPES = new Set([
-  'application/pdf',
   'image/png',
   'image/jpeg',
   'image/jpg',
-  'image/webp'
+  'image/webp',
+  'image/gif',
+  'image/bmp'
 ]);
 
 const EXTENSION_MIME_TYPES: Record<string, string> = {
-  pdf: 'application/pdf',
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
-  webp: 'image/webp'
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp'
 };
 
 function toIsoDate(value: string | Date): string {
@@ -196,7 +204,10 @@ function mapDispatch(row: ProductionOrderDispatchRow): ProductionOrderDispatchDT
     dispatchedAt: toIsoDateTime(row.dispatched_at),
     acceptedAt: row.accepted_at ? toIsoDateTime(row.accepted_at) : null,
     completedAt: row.completed_at ? toIsoDateTime(row.completed_at) : null,
-    reportedOutputQuantity: row.reported_output_quantity
+    reportedOutputQuantity: row.reported_output_quantity,
+    boxCount: row.box_count,
+    cartonCount: row.carton_count,
+    palletCount: row.pallet_count
   };
 }
 
@@ -355,7 +366,10 @@ async function getOrderByIdWithClient(
         d.dispatched_at,
         d.accepted_at,
         d.completed_at,
-        d.reported_output_quantity
+        d.reported_output_quantity,
+        d.box_count,
+        d.carton_count,
+        d.pallet_count
       FROM production_order_dispatches d
       JOIN production_units pu ON pu.code = d.unit_code
       WHERE d.production_order_id = $1::uuid
@@ -481,6 +495,52 @@ function getOpenDispatches(
       (!unitGroup || dispatch.unitGroup === unitGroup) &&
       (dispatch.status === 'pending' || dispatch.status === 'in_progress')
   );
+}
+
+function requireCompletionCount(
+  value: number | undefined,
+  label: string
+): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new AppError({
+      status: 400,
+      code: 'COMPLETION_COUNT_REQUIRED',
+      publicMessage: `${label} zorunludur.`
+    });
+  }
+
+  return value;
+}
+
+function getCompletionCountsForUnit(
+  unitCode: string,
+  params: CompleteDispatchParams
+): {
+  boxCount: number | null;
+  cartonCount: number | null;
+  palletCount: number | null;
+} {
+  if (unitCode === 'DEPO') {
+    return {
+      boxCount: requireCompletionCount(params.boxCount, 'Kutu sayısı'),
+      cartonCount: requireCompletionCount(params.cartonCount, 'Koli sayısı'),
+      palletCount: requireCompletionCount(params.palletCount, 'Palet sayısı')
+    };
+  }
+
+  if (unitCode === 'PAKET') {
+    return {
+      boxCount: requireCompletionCount(params.boxCount, 'Kutu sayısı'),
+      cartonCount: requireCompletionCount(params.cartonCount, 'Koli sayısı'),
+      palletCount: null
+    };
+  }
+
+  return {
+    boxCount: null,
+    cartonCount: null,
+    palletCount: null
+  };
 }
 
 async function ensureActiveOrder(client: DbClient, orderId: string): Promise<ProductionOrderListItemDTO> {
@@ -618,7 +678,10 @@ export async function listProductionOrders(
         d.dispatched_at,
         d.accepted_at,
         d.completed_at,
-        d.reported_output_quantity
+        d.reported_output_quantity,
+        d.box_count,
+        d.carton_count,
+        d.pallet_count
       FROM production_order_dispatches d
       JOIN production_units pu ON pu.code = d.unit_code
       WHERE d.production_order_id = ANY($1::uuid[])
@@ -1112,6 +1175,8 @@ export async function completeProductionOrderDispatch(
       });
     }
 
+    const completionCounts = getCompletionCountsForUnit(dispatch.unit_code, params);
+
     await client.query(
       `
         UPDATE production_order_dispatches
@@ -1119,10 +1184,20 @@ export async function completeProductionOrderDispatch(
             completed_by = $2::uuid,
             completed_at = NOW(),
             reported_output_quantity = $3,
+            box_count = $4,
+            carton_count = $5,
+            pallet_count = $6,
             updated_at = NOW()
         WHERE id = $1::uuid
       `,
-      [dispatch.id, params.actorUserId, params.reportedOutputQuantity]
+      [
+        dispatch.id,
+        params.actorUserId,
+        params.reportedOutputQuantity,
+        completionCounts.boxCount,
+        completionCounts.cartonCount,
+        completionCounts.palletCount
+      ]
     );
 
     const updatedOrder = await getOrderByIdWithClient(client, dispatch.production_order_id);
@@ -1156,7 +1231,7 @@ export async function addProductionOrderAttachment(
     throw new AppError({
       status: 400,
       code: 'ATTACHMENT_TYPE_NOT_ALLOWED',
-      publicMessage: 'Yalnız PDF ve görsel dosyaları yüklenebilir.'
+      publicMessage: 'Yalnız görsel dosyaları yüklenebilir.'
     });
   }
 

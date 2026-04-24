@@ -26,6 +26,11 @@ if command -v psql >/dev/null 2>&1; then
   psql "$DATABASE_URL" -f db/migrations/010_seed_hat_role_permissions.sql
   psql "$DATABASE_URL" -f db/migrations/011_add_production_order_delete_permission.sql
   psql "$DATABASE_URL" -f db/migrations/012_production_orders_reset.sql
+  psql "$DATABASE_URL" -f db/migrations/013_make_machine_unit_optional.sql
+  psql "$DATABASE_URL" -f db/migrations/014_parallel_dispatch_roles_and_notes.sql
+  psql "$DATABASE_URL" -f db/migrations/015_allow_multi_batch_dispatches.sql
+  psql "$DATABASE_URL" -f db/migrations/016_remove_pdf_converter_tool.sql
+  psql "$DATABASE_URL" -f db/migrations/017_add_dispatch_completion_counts.sql
 else
   node scripts/run-migrations.mjs
 fi

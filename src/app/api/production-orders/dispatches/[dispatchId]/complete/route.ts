@@ -35,7 +35,10 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       actorUserId: session.userId,
       actorRole: session.role,
       actorUnitCode: session.hatUnitCode,
-      reportedOutputQuantity: parsed.data.reportedOutputQuantity
+      reportedOutputQuantity: parsed.data.reportedOutputQuantity,
+      boxCount: parsed.data.boxCount,
+      cartonCount: parsed.data.cartonCount,
+      palletCount: parsed.data.palletCount
     });
 
     return NextResponse.json({ item });
